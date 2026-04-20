@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tradelens_ai.brokers.base import BrokerAdapter
+from tradelens_ai.brokers.dhan import DhanBrokerAdapter
 from tradelens_ai.brokers.mock import MockBrokerAdapter
 from tradelens_ai.config.settings import AppSettings
 
@@ -24,6 +25,21 @@ class BrokerRegistry:
 
 def build_default_registry(settings: AppSettings | None = None) -> BrokerRegistry:
     registry = BrokerRegistry()
+
     if settings is None or settings.enable_mock_broker:
         registry.register(MockBrokerAdapter())
+
+    if (
+        settings is not None
+        and settings.broker_api is not None
+        and settings.broker_api.dhan_client_id
+        and settings.broker_api.dhan_access_token
+    ):
+        registry.register(
+            DhanBrokerAdapter(
+                client_id=settings.broker_api.dhan_client_id,
+                access_token=settings.broker_api.dhan_access_token,
+            )
+        )
+
     return registry
