@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from tradelens_ai.api.audit_mappers import to_audit_event_response
 from tradelens_ai.api.mappers import (
@@ -33,6 +34,13 @@ from tradelens_ai.services.trading_service import TradingService
 
 settings = load_settings()
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 registry = build_default_registry(settings)
 service = TradingService(registry)
 strategy_execution_service = StrategyExecutionService(service)
