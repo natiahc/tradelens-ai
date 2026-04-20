@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tradelens_ai.brokers.base import BrokerAdapter
 from tradelens_ai.brokers.mock import MockBrokerAdapter
+from tradelens_ai.config.settings import AppSettings
 
 
 class BrokerRegistry:
@@ -20,7 +21,9 @@ class BrokerRegistry:
         return sorted(self._adapters.keys())
 
 
-def build_default_registry() -> BrokerRegistry:
+
+def build_default_registry(settings: AppSettings | None = None) -> BrokerRegistry:
     registry = BrokerRegistry()
-    registry.register(MockBrokerAdapter())
+    if settings is None or settings.enable_mock_broker:
+        registry.register(MockBrokerAdapter())
     return registry
