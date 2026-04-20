@@ -148,6 +148,58 @@
 
     <section class="card wide">
       <div class="card-header">
+        <h2>Broker Credentials</h2>
+        <div class="button-row">
+          <button id="loadBrokerCredentials">Reload</button>
+          <button id="resetBrokerCredentials">Reset Defaults</button>
+          <button id="saveBrokerCredentials">Save</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>
+          Broker Name
+          <input id="brokerCredentialsName" type="text" value="mock" />
+        </label>
+        <label>
+          Client ID
+          <input id="brokerCredentialsClientId" type="password" value="" />
+        </label>
+        <label>
+          API Key
+          <input id="brokerCredentialsApiKey" type="password" value="" />
+        </label>
+        <label>
+          Access Token
+          <input id="brokerCredentialsAccessToken" type="password" value="" />
+        </label>
+        <label>
+          API Secret
+          <input id="brokerCredentialsApiSecret" type="password" value="" />
+        </label>
+      </div>
+      <div class="summary-grid credentials-summary-grid">
+        <div class="summary-tile">
+          <span class="summary-label">Client ID Hint</span>
+          <strong id="brokerCredentialsClientIdHint">-</strong>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">API Key Hint</span>
+          <strong id="brokerCredentialsApiKeyHint">-</strong>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">Access Token Present</span>
+          <strong id="brokerCredentialsHasAccessToken">false</strong>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">API Secret Present</span>
+          <strong id="brokerCredentialsHasApiSecret">false</strong>
+        </div>
+      </div>
+      <pre id="brokerCredentialsResponse" class="payload-box compact"></pre>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
         <h2>Risk Settings</h2>
         <div class="button-row">
           <button id="refreshRiskSettings">Reload</button>
