@@ -19,6 +19,7 @@ from tradelens_ai.api.schemas import (
     HealthResponse,
     PersistedOrderResponse,
     PlaceOrderRequest,
+    StrategySummaryResponse,
     StrategyWebhookRequest,
 )
 from tradelens_ai.brokers.registry import build_default_registry
@@ -30,6 +31,7 @@ from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
+from tradelens_ai.services.strategy_summary_service import StrategySummaryService
 from tradelens_ai.services.trading_service import TradingService
 
 settings = load_settings()
@@ -50,6 +52,7 @@ audit_service = AuditService(audit_store)
 order_store = SQLiteOrderStore(db_path)
 order_history_service = OrderHistoryService(order_store)
 risk_service = StrategyRiskService(audit_store)
+strategy_summary_service = StrategySummaryService(audit_store)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
@@ -60,6 +63,17 @@ def health() -> HealthResponse:
 @app.get("/brokers", response_model=BrokerListResponse, tags=["brokers"])
 def list_brokers() -> BrokerListResponse:
     return BrokerListResponse(brokers=service.list_brokers())
+
+
+@app.get("/strategy/summary", response_model=StrategySummaryResponse, tags=["strategy"])
+def get_strategy_summary() -> StrategySummaryResponse:
+    summary = strategy_summary_service.get_summary()
+    return StrategySummaryResponse(
+        signals_received=summary.signals_received,
+        executed=summary.executed,
+        blocked=summary.blocked,
+        skipped=summary.skipped,
+    )
 
 
 @app.post("/orders", tags=["orders"])
