@@ -17,6 +17,11 @@ class DhanApiClient:
     base_url: str = "https://api.dhan.co"
     timeout_seconds: float = 15.0
 
+    ORDERS_PATH: str = "/orders"
+    POSITIONS_PATH: str = "/positions"
+    HOLDINGS_PATH: str = "/holdings"
+    FUNDS_PATH: str = "/fundlimit"
+
     def auth_headers(self) -> dict[str, str]:
         return {
             "access-token": self.access_token,
@@ -51,19 +56,22 @@ class DhanApiClient:
             raise DhanApiError("Dhan API returned non-JSON response") from exc
 
     def get_orders(self) -> dict | list:
-        return self._request("GET", "/orders")
+        return self._request("GET", self.ORDERS_PATH)
+
+    def get_order(self, order_id: str) -> dict | list:
+        return self._request("GET", f"{self.ORDERS_PATH}/{order_id}")
 
     def place_order(self, payload: dict) -> dict | list:
-        return self._request("POST", "/orders", json_body=payload)
+        return self._request("POST", self.ORDERS_PATH, json_body=payload)
 
     def cancel_order(self, order_id: str) -> dict | list:
-        return self._request("DELETE", f"/orders/{order_id}")
+        return self._request("DELETE", f"{self.ORDERS_PATH}/{order_id}")
 
     def get_positions(self) -> dict | list:
-        return self._request("GET", "/positions")
+        return self._request("GET", self.POSITIONS_PATH)
 
     def get_holdings(self) -> dict | list:
-        return self._request("GET", "/holdings")
+        return self._request("GET", self.HOLDINGS_PATH)
 
     def get_funds(self) -> dict | list:
-        return self._request("GET", "/fundlimit")
+        return self._request("GET", self.FUNDS_PATH)
