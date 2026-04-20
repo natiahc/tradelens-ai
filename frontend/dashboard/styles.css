@@ -101,6 +101,30 @@ button:hover {
   margin-bottom: 12px;
 }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summary-tile {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.summary-label {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.summary-tile strong {
+  font-size: 28px;
+}
+
 .payload-box {
   background: #020617;
   border: 1px solid #1e293b;
@@ -188,7 +212,8 @@ th {
   }
 
   .api-config,
-  .form-grid {
+  .form-grid,
+  .summary-grid {
     grid-template-columns: 1fr;
   }
 }
