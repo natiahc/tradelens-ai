@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: tradelens-ai-backend
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: uvicorn tradelens_ai.api.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: TRADELENS_DATABASE_PATH
+        value: /var/data/tradelens_ai.db
+      - key: TRADELENS_MASTER_KEY
+        sync: false
+    disk:
+      name: tradelens-data
+      mountPath: /var/data
+      sizeGB: 1
