@@ -11,6 +11,8 @@ const el = {
   refreshAudit: document.getElementById("refreshAudit"),
   refreshSummary: document.getElementById("refreshSummary"),
   refreshCharts: document.getElementById("refreshCharts"),
+  refreshRiskSettings: document.getElementById("refreshRiskSettings"),
+  saveRiskSettings: document.getElementById("saveRiskSettings"),
   sendWebhook: document.getElementById("sendWebhook"),
   healthStatus: document.getElementById("healthStatus"),
   healthPayload: document.getElementById("healthPayload"),
@@ -31,6 +33,11 @@ const el = {
   webhookOrderType: document.getElementById("webhookOrderType"),
   webhookProductType: document.getElementById("webhookProductType"),
   includePaperTradeOrder: document.getElementById("includePaperTradeOrder"),
+  riskAllowedSymbols: document.getElementById("riskAllowedSymbols"),
+  riskAllowedBrokers: document.getElementById("riskAllowedBrokers"),
+  riskMaxQuantity: document.getElementById("riskMaxQuantity"),
+  riskMaxDailyExecutions: document.getElementById("riskMaxDailyExecutions"),
+  riskSettingsResponse: document.getElementById("riskSettingsResponse"),
   summaryReceived: document.getElementById("summaryReceived"),
   summaryExecuted: document.getElementById("summaryExecuted"),
   summaryBlocked: document.getElementById("summaryBlocked"),
@@ -80,6 +87,14 @@ function renderBrokers(data) {
     item.textContent = broker;
     el.brokerList.appendChild(item);
   }
+}
+
+function renderRiskSettings(data) {
+  el.riskAllowedSymbols.value = (data.allowed_symbols || []).join(",");
+  el.riskAllowedBrokers.value = (data.allowed_brokers || []).join(",");
+  el.riskMaxQuantity.value = String(data.max_quantity ?? 1);
+  el.riskMaxDailyExecutions.value = String(data.max_daily_strategy_executions ?? 1);
+  el.riskSettingsResponse.textContent = JSON.stringify(data, null, 2);
 }
 
 function renderOrderHistory(data) {
@@ -188,6 +203,34 @@ async function refreshBrokers() {
   }
 }
 
+async function refreshRiskSettings() {
+  try {
+    renderRiskSettings(await apiFetch("/risk/settings"));
+  } catch (error) {
+    el.riskSettingsResponse.textContent = String(error.message || error);
+  }
+}
+
+async function saveRiskSettings() {
+  const payload = {
+    allowed_symbols: el.riskAllowedSymbols.value.split(",").map((s) => s.trim()).filter(Boolean),
+    allowed_brokers: el.riskAllowedBrokers.value.split(",").map((s) => s.trim()).filter(Boolean),
+    max_quantity: Number(el.riskMaxQuantity.value),
+    max_daily_strategy_executions: Number(el.riskMaxDailyExecutions.value),
+  };
+  el.riskSettingsResponse.textContent = "Saving...";
+  try {
+    const result = await apiFetch("/risk/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    renderRiskSettings(result);
+    await refreshAuditEvents();
+  } catch (error) {
+    el.riskSettingsResponse.textContent = String(error.message || error);
+  }
+}
+
 async function refreshOrderHistory() {
   try {
     renderOrderHistory(await apiFetch("/orders/history"));
@@ -263,6 +306,7 @@ async function initialize() {
   await Promise.all([
     refreshHealth(),
     refreshBrokers(),
+    refreshRiskSettings(),
     refreshOrderHistory(),
     refreshAuditEvents(),
     refreshStrategySummary(),
@@ -276,6 +320,8 @@ el.saveApiBaseUrl.addEventListener("click", async () => {
 
 el.refreshHealth.addEventListener("click", refreshHealth);
 el.refreshBrokers.addEventListener("click", refreshBrokers);
+el.refreshRiskSettings.addEventListener("click", refreshRiskSettings);
+el.saveRiskSettings.addEventListener("click", saveRiskSettings);
 el.refreshOrders.addEventListener("click", refreshOrderHistory);
 el.refreshAudit.addEventListener("click", refreshAuditEvents);
 el.refreshSummary.addEventListener("click", refreshStrategySummary);
