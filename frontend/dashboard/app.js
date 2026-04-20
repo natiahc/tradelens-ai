@@ -111,40 +111,13 @@ function renderAuditEvents(data) {
     el.auditBody.appendChild(tr);
   }
   el.auditPayload.textContent = JSON.stringify(data, null, 2);
-  renderSummaryFromAudit(data || []);
 }
 
-function renderSummaryFromAudit(events) {
-  const summary = {
-    received: 0,
-    executed: 0,
-    blocked: 0,
-    skipped: 0,
-  };
-
-  for (const event of events) {
-    switch (event.event_type) {
-      case "strategy_signal_received":
-        summary.received += 1;
-        break;
-      case "strategy_signal_executed":
-        summary.executed += 1;
-        break;
-      case "strategy_signal_blocked":
-        summary.blocked += 1;
-        break;
-      case "strategy_signal_skipped":
-        summary.skipped += 1;
-        break;
-      default:
-        break;
-    }
-  }
-
-  el.summaryReceived.textContent = String(summary.received);
-  el.summaryExecuted.textContent = String(summary.executed);
-  el.summaryBlocked.textContent = String(summary.blocked);
-  el.summarySkipped.textContent = String(summary.skipped);
+function renderStrategySummary(summary) {
+  el.summaryReceived.textContent = String(summary.signals_received ?? 0);
+  el.summaryExecuted.textContent = String(summary.executed ?? 0);
+  el.summaryBlocked.textContent = String(summary.blocked ?? 0);
+  el.summarySkipped.textContent = String(summary.skipped ?? 0);
 }
 
 async function refreshHealth() {
@@ -179,7 +152,14 @@ async function refreshAuditEvents() {
   } catch (error) {
     el.auditBody.innerHTML = `<tr><td colspan="5">${error.message || error}</td></tr>`;
     el.auditPayload.textContent = String(error.message || error);
-    renderSummaryFromAudit([]);
+  }
+}
+
+async function refreshStrategySummary() {
+  try {
+    renderStrategySummary(await apiFetch("/strategy/summary"));
+  } catch (error) {
+    renderStrategySummary({ signals_received: 0, executed: 0, blocked: 0, skipped: 0 });
   }
 }
 
@@ -217,6 +197,7 @@ async function sendWebhook() {
     el.webhookResponse.textContent = JSON.stringify(result, null, 2);
     await refreshOrderHistory();
     await refreshAuditEvents();
+    await refreshStrategySummary();
   } catch (error) {
     el.webhookResponse.textContent = String(error.message || error);
   }
@@ -229,6 +210,7 @@ async function initialize() {
     refreshBrokers(),
     refreshOrderHistory(),
     refreshAuditEvents(),
+    refreshStrategySummary(),
   ]);
 }
 
@@ -241,7 +223,7 @@ el.refreshHealth.addEventListener("click", refreshHealth);
 el.refreshBrokers.addEventListener("click", refreshBrokers);
 el.refreshOrders.addEventListener("click", refreshOrderHistory);
 el.refreshAudit.addEventListener("click", refreshAuditEvents);
-el.refreshSummary.addEventListener("click", refreshAuditEvents);
+el.refreshSummary.addEventListener("click", refreshStrategySummary);
 el.sendWebhook.addEventListener("click", sendWebhook);
 
 initialize();
