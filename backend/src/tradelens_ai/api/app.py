@@ -16,6 +16,8 @@ from tradelens_ai.api.order_history_mappers import to_persisted_order_response
 from tradelens_ai.api.schemas import (
     AuditEventResponse,
     BrokerListResponse,
+    BrokerProfileResponse,
+    BrokerProfileUpdateRequest,
     HealthResponse,
     PersistedOrderResponse,
     PlaceOrderRequest,
@@ -30,6 +32,7 @@ from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, Produ
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.broker_profile_service import BrokerProfile, BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.risk_settings_service import RiskSettings, RiskSettingsService
@@ -54,6 +57,7 @@ audit_store = SQLiteStore(db_path)
 audit_service = AuditService(audit_store)
 order_store = SQLiteOrderStore(db_path)
 order_history_service = OrderHistoryService(order_store)
+broker_profile_service = BrokerProfileService(db_path)
 risk_settings_service = RiskSettingsService(db_path)
 risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
@@ -67,6 +71,54 @@ def health() -> HealthResponse:
 @app.get("/brokers", response_model=BrokerListResponse, tags=["brokers"])
 def list_brokers() -> BrokerListResponse:
     return BrokerListResponse(brokers=service.list_brokers())
+
+
+@app.get("/broker-profile", response_model=BrokerProfileResponse, tags=["brokers"])
+def get_broker_profile() -> BrokerProfileResponse:
+    profile = broker_profile_service.get_profile()
+    return BrokerProfileResponse(
+        broker_name=profile.broker_name,
+        account_label=profile.account_label,
+        execution_mode=profile.execution_mode,
+        default_exchange=profile.default_exchange,
+        default_product_type=profile.default_product_type,
+        is_live_enabled=profile.is_live_enabled,
+    )
+
+
+@app.put("/broker-profile", response_model=BrokerProfileResponse, tags=["brokers"])
+def update_broker_profile(payload: BrokerProfileUpdateRequest) -> BrokerProfileResponse:
+    updated = broker_profile_service.update_profile(
+        BrokerProfile(
+            broker_name=payload.broker_name.strip(),
+            account_label=payload.account_label.strip(),
+            execution_mode=payload.execution_mode.strip(),
+            default_exchange=payload.default_exchange.strip().upper(),
+            default_product_type=payload.default_product_type.strip().lower(),
+            is_live_enabled=payload.is_live_enabled,
+        )
+    )
+    audit_service.log_event(
+        event_type="broker_profile_updated",
+        broker_name=updated.broker_name,
+        entity_id=None,
+        payload={
+            "broker_name": updated.broker_name,
+            "account_label": updated.account_label,
+            "execution_mode": updated.execution_mode,
+            "default_exchange": updated.default_exchange,
+            "default_product_type": updated.default_product_type,
+            "is_live_enabled": updated.is_live_enabled,
+        },
+    )
+    return BrokerProfileResponse(
+        broker_name=updated.broker_name,
+        account_label=updated.account_label,
+        execution_mode=updated.execution_mode,
+        default_exchange=updated.default_exchange,
+        default_product_type=updated.default_product_type,
+        is_live_enabled=updated.is_live_enabled,
+    )
 
 
 @app.get("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"])
