@@ -27,6 +27,7 @@ from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
+from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.trading_service import TradingService
 
@@ -40,6 +41,7 @@ audit_store = SQLiteStore(db_path)
 audit_service = AuditService(audit_store)
 order_store = SQLiteOrderStore(db_path)
 order_history_service = OrderHistoryService(order_store)
+risk_service = StrategyRiskService(audit_store)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
@@ -135,13 +137,33 @@ def strategy_webhook(payload: StrategyWebhookRequest):
         },
     )
 
+    risk_decision = risk_service.evaluate(broker_name=payload.broker, payload=payload.payload)
+    if not risk_decision.allowed:
+        audit_service.log_event(
+            event_type="strategy_signal_blocked",
+            broker_name=payload.broker,
+            entity_id=None,
+            payload={
+                "signal_type": payload.signal_type,
+                "source": payload.source,
+                "reason": risk_decision.reason,
+            },
+        )
+        return {
+            "status": "accepted",
+            "event_id": event_id,
+            "executed": False,
+            "blocked": True,
+            "reason": risk_decision.reason,
+        }
+
     execution = strategy_execution_service.maybe_execute_signal(
         broker_name=payload.broker,
         signal_type=payload.signal_type,
         payload=payload.payload,
     )
 
-    response = {"status": "accepted", "event_id": event_id, "executed": execution.executed}
+    response = {"status": "accepted", "event_id": event_id, "executed": execution.executed, "blocked": False}
 
     if execution.order is not None:
         order_history_service.record_order(execution.order)
