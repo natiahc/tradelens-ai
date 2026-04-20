@@ -65,3 +65,12 @@ class HoldingResponse(BaseModel):
     quantity: int
     average_price: float
     last_price: float
+
+
+class AuditEventResponse(BaseModel):
+    event_id: int
+    event_type: str
+    broker_name: Optional[str] = None
+    entity_id: Optional[str] = None
+    payload_json: str
+    created_at: str
