@@ -50,6 +50,23 @@ class BrokerProfileUpdateRequest(BaseModel):
     is_live_enabled: bool
 
 
+class BrokerCredentialProfileResponse(BaseModel):
+    broker_name: str
+    client_id_hint: str
+    api_key_hint: str
+    has_access_token: bool
+    has_api_secret: bool
+    updated_at: str
+
+
+class BrokerCredentialProfileUpdateRequest(BaseModel):
+    broker_name: str
+    client_id: Optional[str] = None
+    api_key: Optional[str] = None
+    access_token: Optional[str] = None
+    api_secret: Optional[str] = None
+
+
 class StrategySummaryResponse(BaseModel):
     signals_received: int
     executed: int
