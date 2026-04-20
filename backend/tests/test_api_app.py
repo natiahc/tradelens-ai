@@ -9,6 +9,7 @@ from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
+from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.trading_service import TradingService
 
@@ -17,8 +18,10 @@ def build_test_client() -> TestClient:
     api_module.service = TradingService(build_default_registry())
     api_module.strategy_execution_service = StrategyExecutionService(api_module.service)
     temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    api_module.audit_service = AuditService(SQLiteStore(temp_db.name))
+    store = SQLiteStore(temp_db.name)
+    api_module.audit_service = AuditService(store)
     api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
+    api_module.risk_service = StrategyRiskService(store)
     return TestClient(fastapi_app)
 
 
@@ -167,12 +170,76 @@ def test_strategy_webhook_skipped_without_paper_trade_order():
     body = webhook_response.json()
     assert body["status"] == "accepted"
     assert body["executed"] is False
+    assert body["blocked"] is False
 
     audit_response = client.get("/audit/events")
     events = audit_response.json()
     event_types = {event["event_type"] for event in events}
     assert "strategy_signal_received" in event_types
     assert "strategy_signal_skipped" in event_types
+
+
+
+def test_strategy_webhook_blocks_disallowed_symbol():
+    client = build_test_client()
+
+    webhook_response = client.post(
+        "/webhooks/strategy",
+        json={
+            "source": "tv-bridge",
+            "signal_type": "entry_long",
+            "broker": "mock",
+            "payload": {
+                "paper_trade_order": {
+                    "symbol": "UNKNOWN",
+                    "exchange": "NSE",
+                    "side": "buy",
+                    "quantity": 2,
+                    "order_type": "market",
+                    "product_type": "cnc"
+                }
+            }
+        },
+    )
+    assert webhook_response.status_code == 200
+    body = webhook_response.json()
+    assert body["executed"] is False
+    assert body["blocked"] is True
+    assert "Symbol not allowed" in body["reason"]
+
+    audit_response = client.get("/audit/events")
+    events = audit_response.json()
+    event_types = {event["event_type"] for event in events}
+    assert "strategy_signal_blocked" in event_types
+
+
+
+def test_strategy_webhook_blocks_excess_quantity():
+    client = build_test_client()
+
+    webhook_response = client.post(
+        "/webhooks/strategy",
+        json={
+            "source": "tv-bridge",
+            "signal_type": "entry_long",
+            "broker": "mock",
+            "payload": {
+                "paper_trade_order": {
+                    "symbol": "INFY",
+                    "exchange": "NSE",
+                    "side": "buy",
+                    "quantity": 99,
+                    "order_type": "market",
+                    "product_type": "cnc"
+                }
+            }
+        },
+    )
+    assert webhook_response.status_code == 200
+    body = webhook_response.json()
+    assert body["executed"] is False
+    assert body["blocked"] is True
+    assert "Quantity exceeds max limit" in body["reason"]
 
 
 
@@ -202,6 +269,7 @@ def test_strategy_webhook_executes_paper_trade_and_persists_order():
     body = webhook_response.json()
     assert body["status"] == "accepted"
     assert body["executed"] is True
+    assert body["blocked"] is False
     assert body["order"]["symbol"] == "INFY"
 
     history_response = client.get("/orders/history")
