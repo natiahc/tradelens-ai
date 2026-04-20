@@ -43,12 +43,23 @@ from tradelens_ai.services.strategy_execution_service import StrategyExecutionSe
 from tradelens_ai.services.strategy_summary_service import StrategySummaryService
 from tradelens_ai.services.trading_service import TradingService
 
+
 settings = load_settings()
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+
+
+def _load_cors_origins() -> list[str]:
+    raw = os.getenv("TRADELENS_CORS_ORIGINS", "*").strip()
+    if raw == "*":
+        return ["*"]
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+cors_origins = _load_cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=False if cors_origins == ["*"] else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
