@@ -39,6 +39,35 @@
 
     <section class="card wide">
       <div class="card-header">
+        <h2>Risk Settings</h2>
+        <div class="button-row">
+          <button id="refreshRiskSettings">Reload</button>
+          <button id="saveRiskSettings">Save</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>
+          Allowed Symbols (comma separated)
+          <input id="riskAllowedSymbols" type="text" value="INFY,TCS,RELIANCE,SBIN" />
+        </label>
+        <label>
+          Allowed Brokers (comma separated)
+          <input id="riskAllowedBrokers" type="text" value="mock" />
+        </label>
+        <label>
+          Max Quantity
+          <input id="riskMaxQuantity" type="number" value="10" min="1" />
+        </label>
+        <label>
+          Max Daily Strategy Executions
+          <input id="riskMaxDailyExecutions" type="number" value="20" min="1" />
+        </label>
+      </div>
+      <pre id="riskSettingsResponse" class="payload-box compact"></pre>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
         <h2>Strategy Signal Summary</h2>
         <button id="refreshSummary">Refresh</button>
       </div>
