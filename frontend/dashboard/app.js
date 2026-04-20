@@ -20,6 +20,15 @@ const DEFAULT_BROKER_SETUP = {
   is_live_enabled: false,
 };
 
+const DEFAULT_BROKER_CREDENTIALS = {
+  broker_name: "mock",
+  client_id_hint: "",
+  api_key_hint: "",
+  has_access_token: false,
+  has_api_secret: false,
+  updated_at: "",
+};
+
 const state = {
   apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || DEFAULT_UI_SETTINGS.api_base_url,
 };
@@ -46,6 +55,9 @@ const el = {
   loadBrokerSetup: document.getElementById("loadBrokerSetup"),
   saveBrokerSetup: document.getElementById("saveBrokerSetup"),
   resetBrokerSetup: document.getElementById("resetBrokerSetup"),
+  loadBrokerCredentials: document.getElementById("loadBrokerCredentials"),
+  saveBrokerCredentials: document.getElementById("saveBrokerCredentials"),
+  resetBrokerCredentials: document.getElementById("resetBrokerCredentials"),
   refreshRiskSettings: document.getElementById("refreshRiskSettings"),
   saveRiskSettings: document.getElementById("saveRiskSettings"),
   resetRiskSettings: document.getElementById("resetRiskSettings"),
@@ -87,6 +99,16 @@ const el = {
   brokerSetupProductType: document.getElementById("brokerSetupProductType"),
   brokerSetupLiveEnabled: document.getElementById("brokerSetupLiveEnabled"),
   brokerSetupResponse: document.getElementById("brokerSetupResponse"),
+  brokerCredentialsName: document.getElementById("brokerCredentialsName"),
+  brokerCredentialsClientId: document.getElementById("brokerCredentialsClientId"),
+  brokerCredentialsApiKey: document.getElementById("brokerCredentialsApiKey"),
+  brokerCredentialsAccessToken: document.getElementById("brokerCredentialsAccessToken"),
+  brokerCredentialsApiSecret: document.getElementById("brokerCredentialsApiSecret"),
+  brokerCredentialsClientIdHint: document.getElementById("brokerCredentialsClientIdHint"),
+  brokerCredentialsApiKeyHint: document.getElementById("brokerCredentialsApiKeyHint"),
+  brokerCredentialsHasAccessToken: document.getElementById("brokerCredentialsHasAccessToken"),
+  brokerCredentialsHasApiSecret: document.getElementById("brokerCredentialsHasApiSecret"),
+  brokerCredentialsResponse: document.getElementById("brokerCredentialsResponse"),
   riskAllowedSymbols: document.getElementById("riskAllowedSymbols"),
   riskAllowedBrokers: document.getElementById("riskAllowedBrokers"),
   riskMaxQuantity: document.getElementById("riskMaxQuantity"),
@@ -124,6 +146,16 @@ function loadStoredBrokerSetup() {
   }
 }
 
+function loadStoredBrokerCredentials() {
+  try {
+    const raw = localStorage.getItem("tradelensBrokerCredentials");
+    if (!raw) return { ...DEFAULT_BROKER_CREDENTIALS };
+    return { ...DEFAULT_BROKER_CREDENTIALS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_BROKER_CREDENTIALS };
+  }
+}
+
 function renderUiSettings(settings) {
   el.settingsApiBaseUrl.value = settings.api_base_url;
   el.settingsWebhookSource.value = settings.webhook_source;
@@ -148,6 +180,19 @@ function renderBrokerSetup(setup) {
   el.brokerSetupLiveEnabled.checked = Boolean(setup.is_live_enabled);
   el.brokerSetupResponse.textContent = JSON.stringify(setup, null, 2);
   applyBrokerSetupToDashboard(setup);
+}
+
+function renderBrokerCredentials(profile) {
+  el.brokerCredentialsName.value = profile.broker_name || DEFAULT_BROKER_CREDENTIALS.broker_name;
+  el.brokerCredentialsClientId.value = "";
+  el.brokerCredentialsApiKey.value = "";
+  el.brokerCredentialsAccessToken.value = "";
+  el.brokerCredentialsApiSecret.value = "";
+  el.brokerCredentialsClientIdHint.textContent = profile.client_id_hint || "-";
+  el.brokerCredentialsApiKeyHint.textContent = profile.api_key_hint || "-";
+  el.brokerCredentialsHasAccessToken.textContent = String(Boolean(profile.has_access_token));
+  el.brokerCredentialsHasApiSecret.textContent = String(Boolean(profile.has_api_secret));
+  el.brokerCredentialsResponse.textContent = JSON.stringify(profile, null, 2);
 }
 
 function applyUiSettingsToDashboard(settings) {
@@ -195,6 +240,16 @@ function buildBrokerSetupPayload() {
   };
 }
 
+function buildBrokerCredentialsPayload() {
+  return {
+    broker_name: el.brokerCredentialsName.value.trim() || DEFAULT_BROKER_CREDENTIALS.broker_name,
+    client_id: el.brokerCredentialsClientId.value.trim() || null,
+    api_key: el.brokerCredentialsApiKey.value.trim() || null,
+    access_token: el.brokerCredentialsAccessToken.value.trim() || null,
+    api_secret: el.brokerCredentialsApiSecret.value.trim() || null,
+  };
+}
+
 function saveUiSettings() {
   const payload = buildUiSettingsPayload();
   localStorage.setItem("tradelensUiSettings", JSON.stringify(payload));
@@ -239,6 +294,49 @@ async function saveBrokerSetup() {
 async function resetBrokerSetup() {
   renderBrokerSetup(DEFAULT_BROKER_SETUP);
   await saveBrokerSetup();
+}
+
+async function loadBrokerCredentials() {
+  try {
+    const result = await apiFetch("/broker-credentials");
+    localStorage.setItem("tradelensBrokerCredentials", JSON.stringify(result));
+    renderBrokerCredentials(result);
+  } catch (error) {
+    const fallback = loadStoredBrokerCredentials();
+    renderBrokerCredentials(fallback);
+    el.brokerCredentialsResponse.textContent = `Backend unavailable, showing local placeholder profile\n${JSON.stringify(fallback, null, 2)}`;
+  }
+}
+
+async function saveBrokerCredentials() {
+  const payload = buildBrokerCredentialsPayload();
+  el.brokerCredentialsResponse.textContent = "Saving...";
+  try {
+    const result = await apiFetch("/broker-credentials", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    localStorage.setItem("tradelensBrokerCredentials", JSON.stringify(result));
+    renderBrokerCredentials(result);
+    await refreshAuditEvents();
+  } catch (error) {
+    const fallback = {
+      broker_name: payload.broker_name,
+      client_id_hint: payload.client_id ? "saved-locally" : "",
+      api_key_hint: payload.api_key ? "saved-locally" : "",
+      has_access_token: Boolean(payload.access_token),
+      has_api_secret: Boolean(payload.api_secret),
+      updated_at: new Date().toISOString(),
+    };
+    localStorage.setItem("tradelensBrokerCredentials", JSON.stringify(fallback));
+    renderBrokerCredentials(fallback);
+    el.brokerCredentialsResponse.textContent = `Saved local placeholder because backend credential API failed\n${String(error.message || error)}`;
+  }
+}
+
+async function resetBrokerCredentials() {
+  renderBrokerCredentials(DEFAULT_BROKER_CREDENTIALS);
+  localStorage.setItem("tradelensBrokerCredentials", JSON.stringify(DEFAULT_BROKER_CREDENTIALS));
 }
 
 async function apiFetch(path, options = {}) {
@@ -505,6 +603,7 @@ async function initialize() {
   const uiSettings = loadStoredUiSettings();
   renderUiSettings(uiSettings);
   await loadBrokerSetup();
+  await loadBrokerCredentials();
   await Promise.all([
     refreshHealth(),
     refreshBrokers(),
@@ -526,6 +625,9 @@ el.resetUiSettings.addEventListener("click", resetUiSettings);
 el.loadBrokerSetup.addEventListener("click", loadBrokerSetup);
 el.saveBrokerSetup.addEventListener("click", saveBrokerSetup);
 el.resetBrokerSetup.addEventListener("click", resetBrokerSetup);
+el.loadBrokerCredentials.addEventListener("click", loadBrokerCredentials);
+el.saveBrokerCredentials.addEventListener("click", saveBrokerCredentials);
+el.resetBrokerCredentials.addEventListener("click", resetBrokerCredentials);
 el.refreshHealth.addEventListener("click", refreshHealth);
 el.refreshBrokers.addEventListener("click", refreshBrokers);
 el.refreshRiskSettings.addEventListener("click", refreshRiskSettings);
