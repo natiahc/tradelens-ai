@@ -3,6 +3,7 @@ from __future__ import annotations
 from tradelens_ai.brokers.base import BrokerAdapter
 from tradelens_ai.brokers.dhan import DhanBrokerAdapter
 from tradelens_ai.brokers.mock import MockBrokerAdapter
+from tradelens_ai.brokers.zerodha import ZerodhaBrokerAdapter
 from tradelens_ai.config.settings import AppSettings
 
 
@@ -39,6 +40,19 @@ def build_default_registry(settings: AppSettings | None = None) -> BrokerRegistr
             DhanBrokerAdapter(
                 client_id=settings.broker_api.dhan_client_id,
                 access_token=settings.broker_api.dhan_access_token,
+            )
+        )
+
+    if (
+        settings is not None
+        and settings.broker_api is not None
+        and settings.broker_api.zerodha_api_key
+        and settings.broker_api.zerodha_access_token
+    ):
+        registry.register(
+            ZerodhaBrokerAdapter(
+                api_key=settings.broker_api.zerodha_api_key,
+                access_token=settings.broker_api.zerodha_access_token,
             )
         )
 
