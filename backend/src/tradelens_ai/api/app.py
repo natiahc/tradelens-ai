@@ -1,23 +1,30 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
 
+from tradelens_ai.api.audit_mappers import to_audit_event_response
 from tradelens_ai.api.mappers import (
     to_funds_response,
     to_holding_response,
     to_order_response,
     to_position_response,
 )
-from tradelens_ai.api.schemas import BrokerListResponse, HealthResponse, PlaceOrderRequest
+from tradelens_ai.api.schemas import AuditEventResponse, BrokerListResponse, HealthResponse, PlaceOrderRequest
 from tradelens_ai.brokers.registry import build_default_registry
 from tradelens_ai.config.settings import load_settings
 from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, ProductType
+from tradelens_ai.persistence.sqlite_store import SQLiteStore
+from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.trading_service import TradingService
 
 settings = load_settings()
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 registry = build_default_registry(settings)
 service = TradingService(registry)
+audit_store = SQLiteStore(os.getenv("TRADELENS_DATABASE_PATH", "tradelens_ai.db"))
+audit_service = AuditService(audit_store)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
@@ -50,6 +57,20 @@ def place_order(payload: PlaceOrderRequest):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    audit_service.log_event(
+        event_type="order_placed",
+        broker_name=payload.broker,
+        entity_id=order.order_id,
+        payload={
+            "symbol": payload.symbol,
+            "exchange": payload.exchange,
+            "side": payload.side,
+            "quantity": payload.quantity,
+            "order_type": payload.order_type,
+            "product_type": payload.product_type,
+        },
+    )
     return to_order_response(order)
 
 
@@ -69,6 +90,13 @@ def cancel_order(broker_name: str, order_id: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not is_cancelled:
         raise HTTPException(status_code=404, detail=f"Order not found: {order_id}")
+
+    audit_service.log_event(
+        event_type="order_cancelled",
+        broker_name=broker_name,
+        entity_id=order_id,
+        payload={"order_id": order_id, "broker": broker_name},
+    )
     return {"status": "cancelled", "order_id": order_id, "broker": broker_name}
 
 
@@ -94,3 +122,8 @@ def get_funds(broker_name: str):
         return to_funds_response(service.get_funds(broker_name))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/audit/events", response_model=list[AuditEventResponse], tags=["audit"])
+def list_audit_events(limit: int = 50):
+    return [to_audit_event_response(event) for event in audit_service.list_events(limit=limit)]
