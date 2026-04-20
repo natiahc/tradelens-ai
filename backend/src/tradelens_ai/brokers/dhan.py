@@ -8,8 +8,11 @@ from tradelens_ai.domain.models import (
     Holding,
     Order,
     OrderRequest,
+    OrderSide,
     OrderStatus,
+    OrderType,
     Position,
+    ProductType,
 )
 
 
@@ -38,24 +41,28 @@ class DhanBrokerAdapter(BrokerAdapter):
     def _map_order(self, payload: dict) -> Order:
         return Order(
             broker=BrokerName.DHAN,
-            order_id=str(payload.get("orderId", "unknown")),
-            symbol=str(payload.get("securityId", "")),
-            exchange=str(payload.get("exchangeSegment", "")),
+            order_id=str(payload.get("orderId") or payload.get("orderNo") or "unknown"),
+            symbol=str(payload.get("securityId") or payload.get("tradingSymbol") or ""),
+            exchange=str(payload.get("exchangeSegment") or payload.get("exchange") or ""),
             side=request_side_from_payload(payload),
-            quantity=int(payload.get("quantity", 0)),
-            filled_quantity=int(payload.get("filledQty", 0)),
+            quantity=int(payload.get("quantity") or payload.get("qty") or 0),
+            filled_quantity=int(payload.get("filledQty") or payload.get("tradedQuantity") or 0),
             order_type=request_order_type_from_payload(payload),
             product_type=request_product_type_from_payload(payload),
-            status=OrderStatus.CREATED,
-            price=payload.get("price"),
-            average_price=payload.get("avgTradedPrice"),
+            status=request_order_status_from_payload(payload),
+            price=_to_optional_float(payload.get("price")),
+            average_price=_to_optional_float(payload.get("avgTradedPrice") or payload.get("averageTradedPrice")),
             raw_payload=payload,
         )
 
     def place_order(self, request: OrderRequest) -> Order:
         payload = self._build_place_order_payload(request)
         response = self.client.place_order(payload)
-        return self._map_order(response)
+        if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
+            return self._map_order(response["data"])
+        if isinstance(response, dict):
+            return self._map_order(response)
+        raise ValueError("Unexpected Dhan place_order response format")
 
     def get_order(self, order_id: str) -> Order:
         orders = self.list_orders()
@@ -79,11 +86,11 @@ class DhanBrokerAdapter(BrokerAdapter):
         return [
             Position(
                 broker=BrokerName.DHAN,
-                symbol=str(item.get("securityId", "")),
-                exchange=str(item.get("exchangeSegment", "")),
-                quantity=int(item.get("netQty", 0)),
-                average_price=float(item.get("costPrice", 0.0)),
-                last_price=float(item.get("ltp", 0.0)),
+                symbol=str(item.get("securityId") or item.get("tradingSymbol") or ""),
+                exchange=str(item.get("exchangeSegment") or item.get("exchange") or ""),
+                quantity=int(item.get("netQty") or item.get("quantity") or 0),
+                average_price=float(item.get("costPrice") or item.get("averagePrice") or 0.0),
+                last_price=float(item.get("ltp") or item.get("lastPrice") or 0.0),
             )
             for item in items
         ]
@@ -94,11 +101,11 @@ class DhanBrokerAdapter(BrokerAdapter):
         return [
             Holding(
                 broker=BrokerName.DHAN,
-                symbol=str(item.get("securityId", "")),
-                exchange=str(item.get("exchange", "")),
-                quantity=int(item.get("totalQty", 0)),
-                average_price=float(item.get("avgCostPrice", 0.0)),
-                last_price=float(item.get("ltp", 0.0)),
+                symbol=str(item.get("securityId") or item.get("tradingSymbol") or ""),
+                exchange=str(item.get("exchange") or item.get("exchangeSegment") or ""),
+                quantity=int(item.get("totalQty") or item.get("quantity") or 0),
+                average_price=float(item.get("avgCostPrice") or item.get("averagePrice") or 0.0),
+                last_price=float(item.get("ltp") or item.get("lastPrice") or 0.0),
             )
             for item in items
         ]
@@ -108,24 +115,27 @@ class DhanBrokerAdapter(BrokerAdapter):
         data = response.get("data", response)
         return FundsSnapshot(
             broker=BrokerName.DHAN,
-            available_cash=float(data.get("availabelBalance", 0.0)),
-            used_margin=float(data.get("utilizedAmount", 0.0)),
-            net_equity=float(data.get("sodLimit", 0.0)),
+            available_cash=float(data.get("availabelBalance") or data.get("availableBalance") or 0.0),
+            used_margin=float(data.get("utilizedAmount") or data.get("usedMargin") or 0.0),
+            net_equity=float(data.get("sodLimit") or data.get("netEquity") or 0.0),
         )
 
 
-def request_side_from_payload(payload: dict):
-    value = str(payload.get("transactionType", "BUY")).lower()
-    from tradelens_ai.domain.models import OrderSide
+def _to_optional_float(value):
+    if value is None or value == "":
+        return None
+    return float(value)
 
+
+
+def request_side_from_payload(payload: dict) -> OrderSide:
+    value = str(payload.get("transactionType", "BUY")).lower()
     return OrderSide.BUY if value == "buy" else OrderSide.SELL
 
 
 
-def request_order_type_from_payload(payload: dict):
+def request_order_type_from_payload(payload: dict) -> OrderType:
     value = str(payload.get("orderType", "MARKET")).lower()
-    from tradelens_ai.domain.models import OrderType
-
     mapping = {
         "market": OrderType.MARKET,
         "limit": OrderType.LIMIT,
@@ -133,18 +143,41 @@ def request_order_type_from_payload(payload: dict):
         "stop_limit": OrderType.STOP_LIMIT,
         "stoploss": OrderType.STOP,
         "sl": OrderType.STOP_LIMIT,
+        "sl-m": OrderType.STOP,
     }
     return mapping.get(value, OrderType.MARKET)
 
 
 
-def request_product_type_from_payload(payload: dict):
+def request_product_type_from_payload(payload: dict) -> ProductType:
     value = str(payload.get("productType", "CNC")).lower()
-    from tradelens_ai.domain.models import ProductType
-
     mapping = {
         "cnc": ProductType.CNC,
         "mis": ProductType.MIS,
         "nrml": ProductType.NRML,
+        "intraday": ProductType.MIS,
+        "delivery": ProductType.CNC,
     }
     return mapping.get(value, ProductType.CNC)
+
+
+
+def request_order_status_from_payload(payload: dict) -> OrderStatus:
+    value = str(payload.get("orderStatus") or payload.get("status") or "created").strip().lower()
+    mapping = {
+        "created": OrderStatus.CREATED,
+        "pending": OrderStatus.OPEN,
+        "open": OrderStatus.OPEN,
+        "transit": OrderStatus.OPEN,
+        "trigger pending": OrderStatus.OPEN,
+        "partially traded": OrderStatus.PARTIALLY_FILLED,
+        "partially_filled": OrderStatus.PARTIALLY_FILLED,
+        "filled": OrderStatus.FILLED,
+        "traded": OrderStatus.FILLED,
+        "cancelled": OrderStatus.CANCELLED,
+        "canceled": OrderStatus.CANCELLED,
+        "rejected": OrderStatus.REJECTED,
+        "validation pending": OrderStatus.VALIDATED,
+        "validated": OrderStatus.VALIDATED,
+    }
+    return mapping.get(value, OrderStatus.CREATED)
