@@ -1,5 +1,18 @@
+const DEFAULT_UI_SETTINGS = {
+  api_base_url: "http://127.0.0.1:8000",
+  webhook_source: "dashboard",
+  webhook_signal_type: "entry_long",
+  webhook_broker: "mock",
+  webhook_symbol: "INFY",
+  webhook_exchange: "NSE",
+  webhook_side: "buy",
+  webhook_quantity: 2,
+  webhook_order_type: "market",
+  webhook_product_type: "cnc",
+};
+
 const state = {
-  apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || "http://127.0.0.1:8000",
+  apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || DEFAULT_UI_SETTINGS.api_base_url,
 };
 
 const DEFAULT_RISK_SETTINGS = {
@@ -18,6 +31,9 @@ const el = {
   refreshAudit: document.getElementById("refreshAudit"),
   refreshSummary: document.getElementById("refreshSummary"),
   refreshCharts: document.getElementById("refreshCharts"),
+  loadUiSettings: document.getElementById("loadUiSettings"),
+  saveUiSettings: document.getElementById("saveUiSettings"),
+  resetUiSettings: document.getElementById("resetUiSettings"),
   refreshRiskSettings: document.getElementById("refreshRiskSettings"),
   saveRiskSettings: document.getElementById("saveRiskSettings"),
   resetRiskSettings: document.getElementById("resetRiskSettings"),
@@ -41,6 +57,17 @@ const el = {
   webhookOrderType: document.getElementById("webhookOrderType"),
   webhookProductType: document.getElementById("webhookProductType"),
   includePaperTradeOrder: document.getElementById("includePaperTradeOrder"),
+  settingsApiBaseUrl: document.getElementById("settingsApiBaseUrl"),
+  settingsWebhookSource: document.getElementById("settingsWebhookSource"),
+  settingsWebhookSignalType: document.getElementById("settingsWebhookSignalType"),
+  settingsWebhookBroker: document.getElementById("settingsWebhookBroker"),
+  settingsWebhookSymbol: document.getElementById("settingsWebhookSymbol"),
+  settingsWebhookExchange: document.getElementById("settingsWebhookExchange"),
+  settingsWebhookSide: document.getElementById("settingsWebhookSide"),
+  settingsWebhookQuantity: document.getElementById("settingsWebhookQuantity"),
+  settingsWebhookOrderType: document.getElementById("settingsWebhookOrderType"),
+  settingsWebhookProductType: document.getElementById("settingsWebhookProductType"),
+  uiSettingsResponse: document.getElementById("uiSettingsResponse"),
   riskAllowedSymbols: document.getElementById("riskAllowedSymbols"),
   riskAllowedBrokers: document.getElementById("riskAllowedBrokers"),
   riskMaxQuantity: document.getElementById("riskMaxQuantity"),
@@ -56,6 +83,70 @@ function setApiBaseUrl(url) {
   state.apiBaseUrl = url.replace(/\/$/, "");
   localStorage.setItem("tradelensApiBaseUrl", state.apiBaseUrl);
   el.apiBaseUrl.value = state.apiBaseUrl;
+}
+
+function loadStoredUiSettings() {
+  try {
+    const raw = localStorage.getItem("tradelensUiSettings");
+    if (!raw) return { ...DEFAULT_UI_SETTINGS };
+    return { ...DEFAULT_UI_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_UI_SETTINGS };
+  }
+}
+
+function renderUiSettings(settings) {
+  el.settingsApiBaseUrl.value = settings.api_base_url;
+  el.settingsWebhookSource.value = settings.webhook_source;
+  el.settingsWebhookSignalType.value = settings.webhook_signal_type;
+  el.settingsWebhookBroker.value = settings.webhook_broker;
+  el.settingsWebhookSymbol.value = settings.webhook_symbol;
+  el.settingsWebhookExchange.value = settings.webhook_exchange;
+  el.settingsWebhookSide.value = settings.webhook_side;
+  el.settingsWebhookQuantity.value = String(settings.webhook_quantity);
+  el.settingsWebhookOrderType.value = settings.webhook_order_type;
+  el.settingsWebhookProductType.value = settings.webhook_product_type;
+  el.uiSettingsResponse.textContent = JSON.stringify(settings, null, 2);
+  applyUiSettingsToDashboard(settings);
+}
+
+function applyUiSettingsToDashboard(settings) {
+  setApiBaseUrl(settings.api_base_url);
+  el.webhookSource.value = settings.webhook_source;
+  el.webhookSignalType.value = settings.webhook_signal_type;
+  el.webhookBroker.value = settings.webhook_broker;
+  el.webhookSymbol.value = settings.webhook_symbol;
+  el.webhookExchange.value = settings.webhook_exchange;
+  el.webhookSide.value = settings.webhook_side;
+  el.webhookQuantity.value = String(settings.webhook_quantity);
+  el.webhookOrderType.value = settings.webhook_order_type;
+  el.webhookProductType.value = settings.webhook_product_type;
+}
+
+function buildUiSettingsPayload() {
+  return {
+    api_base_url: el.settingsApiBaseUrl.value.trim() || DEFAULT_UI_SETTINGS.api_base_url,
+    webhook_source: el.settingsWebhookSource.value.trim() || DEFAULT_UI_SETTINGS.webhook_source,
+    webhook_signal_type: el.settingsWebhookSignalType.value.trim() || DEFAULT_UI_SETTINGS.webhook_signal_type,
+    webhook_broker: el.settingsWebhookBroker.value.trim() || DEFAULT_UI_SETTINGS.webhook_broker,
+    webhook_symbol: el.settingsWebhookSymbol.value.trim() || DEFAULT_UI_SETTINGS.webhook_symbol,
+    webhook_exchange: el.settingsWebhookExchange.value.trim() || DEFAULT_UI_SETTINGS.webhook_exchange,
+    webhook_side: el.settingsWebhookSide.value,
+    webhook_quantity: Number(el.settingsWebhookQuantity.value) || DEFAULT_UI_SETTINGS.webhook_quantity,
+    webhook_order_type: el.settingsWebhookOrderType.value,
+    webhook_product_type: el.settingsWebhookProductType.value,
+  };
+}
+
+function saveUiSettings() {
+  const payload = buildUiSettingsPayload();
+  localStorage.setItem("tradelensUiSettings", JSON.stringify(payload));
+  renderUiSettings(payload);
+}
+
+function resetUiSettings() {
+  localStorage.setItem("tradelensUiSettings", JSON.stringify(DEFAULT_UI_SETTINGS));
+  renderUiSettings(DEFAULT_UI_SETTINGS);
 }
 
 async function apiFetch(path, options = {}) {
@@ -319,7 +410,8 @@ async function refreshCharts() {
 }
 
 async function initialize() {
-  setApiBaseUrl(state.apiBaseUrl);
+  const uiSettings = loadStoredUiSettings();
+  renderUiSettings(uiSettings);
   await Promise.all([
     refreshHealth(),
     refreshBrokers(),
@@ -335,6 +427,9 @@ el.saveApiBaseUrl.addEventListener("click", async () => {
   await initialize();
 });
 
+el.loadUiSettings.addEventListener("click", () => renderUiSettings(loadStoredUiSettings()));
+el.saveUiSettings.addEventListener("click", saveUiSettings);
+el.resetUiSettings.addEventListener("click", resetUiSettings);
 el.refreshHealth.addEventListener("click", refreshHealth);
 el.refreshBrokers.addEventListener("click", refreshBrokers);
 el.refreshRiskSettings.addEventListener("click", refreshRiskSettings);
