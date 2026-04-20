@@ -8,6 +8,7 @@ from tradelens_ai.brokers.registry import build_default_registry
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.broker_credentials_service import BrokerCredentialsService
 from tradelens_ai.services.broker_profile_service import BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
@@ -24,6 +25,7 @@ def build_test_client() -> TestClient:
     api_module.audit_service = AuditService(store)
     api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
     api_module.broker_profile_service = BrokerProfileService(temp_db.name)
+    api_module.broker_credentials_service = BrokerCredentialsService(temp_db.name)
     api_module.risk_settings_service = RiskSettingsService(temp_db.name)
     api_module.risk_service = StrategyRiskService(store, api_module.risk_settings_service)
     return TestClient(fastapi_app)
@@ -92,6 +94,54 @@ def test_update_broker_profile_persists_new_values():
     assert persisted["broker_name"] == "dhan"
     assert persisted["execution_mode"] == "live"
     assert persisted["is_live_enabled"] is True
+
+
+
+def test_get_broker_credentials_returns_defaults():
+    client = build_test_client()
+    response = client.get("/broker-credentials")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["broker_name"] == "mock"
+    assert body["client_id_hint"] == ""
+    assert body["api_key_hint"] == ""
+    assert body["has_access_token"] is False
+    assert body["has_api_secret"] is False
+    assert body["updated_at"]
+
+
+
+def test_update_broker_credentials_returns_masked_hints_only():
+    client = build_test_client()
+    response = client.put(
+        "/broker-credentials",
+        json={
+            "broker_name": "dhan",
+            "client_id": "client123456",
+            "api_key": "apikey123456",
+            "access_token": "access-token-value",
+            "api_secret": "api-secret-value",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["broker_name"] == "dhan"
+    assert body["client_id_hint"] != "client123456"
+    assert body["api_key_hint"] != "apikey123456"
+    assert body["client_id_hint"].startswith("cl")
+    assert body["api_key_hint"].startswith("ap")
+    assert body["has_access_token"] is True
+    assert body["has_api_secret"] is True
+
+    follow_up = client.get("/broker-credentials")
+    persisted = follow_up.json()
+    assert persisted["broker_name"] == "dhan"
+    assert persisted["client_id_hint"] == body["client_id_hint"]
+    assert persisted["api_key_hint"] == body["api_key_hint"]
+    assert persisted["has_access_token"] is True
+    assert persisted["has_api_secret"] is True
 
 
 
