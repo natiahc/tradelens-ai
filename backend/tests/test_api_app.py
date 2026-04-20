@@ -1,13 +1,19 @@
+import tempfile
+
 from fastapi.testclient import TestClient
 
 from tradelens_ai.api import app as fastapi_app
 from tradelens_ai.api import app as api_module
 from tradelens_ai.brokers.registry import build_default_registry
+from tradelens_ai.persistence.sqlite_store import SQLiteStore
+from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.trading_service import TradingService
 
 
 def build_test_client() -> TestClient:
     api_module.service = TradingService(build_default_registry())
+    temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    api_module.audit_service = AuditService(SQLiteStore(temp_db.name))
     return TestClient(fastapi_app)
 
 
@@ -83,6 +89,34 @@ def test_cancel_order_endpoint_updates_order_state():
     orders_response = client.get("/orders/mock")
     orders = orders_response.json()
     assert orders[0]["status"] == "cancelled"
+
+
+
+def test_audit_events_endpoint_contains_order_activity():
+    client = build_test_client()
+
+    create_response = client.post(
+        "/orders",
+        json={
+            "broker": "mock",
+            "symbol": "TCS",
+            "exchange": "NSE",
+            "side": "buy",
+            "quantity": 1,
+            "order_type": "market",
+            "product_type": "cnc"
+        },
+    )
+    order_id = create_response.json()["order_id"]
+    client.delete(f"/orders/mock/{order_id}")
+
+    audit_response = client.get("/audit/events")
+    assert audit_response.status_code == 200
+    events = audit_response.json()
+    assert len(events) >= 2
+    event_types = {event["event_type"] for event in events}
+    assert "order_placed" in event_types
+    assert "order_cancelled" in event_types
 
 
 
