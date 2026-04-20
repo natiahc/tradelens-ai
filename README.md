@@ -58,6 +58,50 @@ Indian traders increasingly use broker APIs, but the ecosystem is fragmented. Ea
 - observability from day one
 - AI as decision support, not magic
 
+## Current backend structure
+
+- `backend/src/tradelens_ai/domain/` normalized trading models
+- `backend/src/tradelens_ai/brokers/` broker abstraction and adapters
+- `backend/src/tradelens_ai/api/` FastAPI app, schemas, and mappers
+
+## Running the backend
+
+### 1. Create a virtual environment
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
+pip install -e .
+```
+
+### 3. Run the demo script
+
+```bash
+tradelens-demo
+```
+
+### 4. Run the API server
+
+```bash
+uvicorn tradelens_ai.api:app --reload
+```
+
+## Current API endpoints
+
+- `GET /health`
+- `GET /brokers`
+- `POST /orders`
+- `GET /orders/{broker_name}`
+- `GET /positions/{broker_name}`
+- `GET /holdings/{broker_name}`
+- `GET /funds/{broker_name}`
+
 ## Current status
 
-Repository initialized. Architecture and module scaffolding are being added first.
+The repository now includes architecture docs, a backend package scaffold, a normalized broker layer, a mock broker adapter, real API endpoints, and broker adapter skeletons for Dhan, Zerodha, and Groww.
