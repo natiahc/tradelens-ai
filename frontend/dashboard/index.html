@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TradeLens AI Dashboard</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>TradeLens AI</h1>
+      <p class="subtitle">Multi-broker trading intelligence dashboard</p>
+    </div>
+    <div class="api-config">
+      <label for="apiBaseUrl">API Base URL</label>
+      <input id="apiBaseUrl" type="text" value="http://127.0.0.1:8000" />
+      <button id="saveApiBaseUrl">Connect</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card">
+      <div class="card-header">
+        <h2>System Status</h2>
+        <button id="refreshHealth">Refresh</button>
+      </div>
+      <div id="healthStatus" class="status-pill">Unknown</div>
+      <pre id="healthPayload" class="payload-box"></pre>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Brokers</h2>
+        <button id="refreshBrokers">Refresh</button>
+      </div>
+      <ul id="brokerList" class="list"></ul>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
+        <h2>Persisted Order History</h2>
+        <button id="refreshOrders">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Record</th>
+              <th>Broker</th>
+              <th>Order ID</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Status</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="orderHistoryBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
+        <h2>Audit Events</h2>
+        <button id="refreshAudit">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Broker</th>
+              <th>Entity</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+      <pre id="auditPayload" class="payload-box compact"></pre>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
+        <h2>Strategy Webhook Tester</h2>
+        <button id="sendWebhook">Send Webhook</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Source
+          <input id="webhookSource" type="text" value="dashboard" />
+        </label>
+        <label>
+          Signal Type
+          <input id="webhookSignalType" type="text" value="entry_long" />
+        </label>
+        <label>
+          Broker
+          <input id="webhookBroker" type="text" value="mock" />
+        </label>
+        <label>
+          Symbol
+          <input id="webhookSymbol" type="text" value="INFY" />
+        </label>
+        <label>
+          Exchange
+          <input id="webhookExchange" type="text" value="NSE" />
+        </label>
+        <label>
+          Side
+          <select id="webhookSide">
+            <option value="buy">buy</option>
+            <option value="sell">sell</option>
+          </select>
+        </label>
+        <label>
+          Quantity
+          <input id="webhookQuantity" type="number" value="2" min="1" />
+        </label>
+        <label>
+          Order Type
+          <select id="webhookOrderType">
+            <option value="market">market</option>
+            <option value="limit">limit</option>
+          </select>
+        </label>
+        <label>
+          Product Type
+          <select id="webhookProductType">
+            <option value="cnc">cnc</option>
+            <option value="mis">mis</option>
+            <option value="nrml">nrml</option>
+          </select>
+        </label>
+      </div>
+      <label class="checkbox-row">
+        <input id="includePaperTradeOrder" type="checkbox" checked />
+        Include paper trade order payload
+      </label>
+      <pre id="webhookResponse" class="payload-box"></pre>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
