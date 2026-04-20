@@ -10,6 +10,7 @@ from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
+from tradelens_ai.services.risk_settings_service import RiskSettingsService
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.trading_service import TradingService
 
@@ -21,7 +22,8 @@ def build_test_client() -> TestClient:
     store = SQLiteStore(temp_db.name)
     api_module.audit_service = AuditService(store)
     api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
-    api_module.risk_service = StrategyRiskService(store)
+    api_module.risk_settings_service = RiskSettingsService(temp_db.name)
+    api_module.risk_service = StrategyRiskService(store, api_module.risk_settings_service)
     return TestClient(fastapi_app)
 
 
@@ -41,6 +43,46 @@ def test_brokers_endpoint_lists_mock_broker():
 
     assert response.status_code == 200
     assert "mock" in response.json()["brokers"]
+
+
+
+def test_get_risk_settings_returns_defaults():
+    client = build_test_client()
+    response = client.get("/risk/settings")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["allowed_symbols"] == ["INFY", "TCS", "RELIANCE", "SBIN"]
+    assert body["allowed_brokers"] == ["mock"]
+    assert body["max_quantity"] == 10
+    assert body["max_daily_strategy_executions"] == 20
+
+
+
+def test_update_risk_settings_persists_new_values():
+    client = build_test_client()
+    response = client.put(
+        "/risk/settings",
+        json={
+            "allowed_symbols": ["INFY", "TCS"],
+            "allowed_brokers": ["mock"],
+            "max_quantity": 3,
+            "max_daily_strategy_executions": 7,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["allowed_symbols"] == ["INFY", "TCS"]
+    assert body["allowed_brokers"] == ["mock"]
+    assert body["max_quantity"] == 3
+    assert body["max_daily_strategy_executions"] == 7
+
+    follow_up = client.get("/risk/settings")
+    assert follow_up.status_code == 200
+    persisted = follow_up.json()
+    assert persisted["max_quantity"] == 3
+    assert persisted["max_daily_strategy_executions"] == 7
 
 
 
