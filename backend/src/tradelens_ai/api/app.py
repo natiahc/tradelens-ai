@@ -158,17 +158,17 @@ def place_order(payload: PlaceOrderRequest):
     return to_order_response(order)
 
 
+@app.get("/orders/history", response_model=list[PersistedOrderResponse], tags=["orders"])
+def list_persisted_orders(limit: int = 100):
+    return [to_persisted_order_response(order) for order in order_history_service.list_orders(limit=limit)]
+
+
 @app.get("/orders/{broker_name}", tags=["orders"])
 def list_orders(broker_name: str):
     try:
         return [to_order_response(order) for order in service.list_orders(broker_name)]
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@app.get("/orders/history", response_model=list[PersistedOrderResponse], tags=["orders"])
-def list_persisted_orders(limit: int = 100):
-    return [to_persisted_order_response(order) for order in order_history_service.list_orders(limit=limit)]
 
 
 @app.delete("/orders/{broker_name}/{order_id}", tags=["orders"])
