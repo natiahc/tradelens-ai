@@ -19,6 +19,8 @@ from tradelens_ai.api.schemas import (
     HealthResponse,
     PersistedOrderResponse,
     PlaceOrderRequest,
+    RiskSettingsResponse,
+    RiskSettingsUpdateRequest,
     StrategySummaryResponse,
     StrategyWebhookRequest,
 )
@@ -30,6 +32,7 @@ from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
+from tradelens_ai.services.risk_settings_service import RiskSettings, RiskSettingsService
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.strategy_summary_service import StrategySummaryService
 from tradelens_ai.services.trading_service import TradingService
@@ -51,7 +54,8 @@ audit_store = SQLiteStore(db_path)
 audit_service = AuditService(audit_store)
 order_store = SQLiteOrderStore(db_path)
 order_history_service = OrderHistoryService(order_store)
-risk_service = StrategyRiskService(audit_store)
+risk_settings_service = RiskSettingsService(db_path)
+risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
 
 
@@ -63,6 +67,46 @@ def health() -> HealthResponse:
 @app.get("/brokers", response_model=BrokerListResponse, tags=["brokers"])
 def list_brokers() -> BrokerListResponse:
     return BrokerListResponse(brokers=service.list_brokers())
+
+
+@app.get("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"])
+def get_risk_settings() -> RiskSettingsResponse:
+    current = risk_settings_service.get_settings()
+    return RiskSettingsResponse(
+        allowed_symbols=current.allowed_symbols,
+        allowed_brokers=current.allowed_brokers,
+        max_quantity=current.max_quantity,
+        max_daily_strategy_executions=current.max_daily_strategy_executions,
+    )
+
+
+@app.put("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"])
+def update_risk_settings(payload: RiskSettingsUpdateRequest) -> RiskSettingsResponse:
+    updated = risk_settings_service.update_settings(
+        RiskSettings(
+            allowed_symbols=[symbol.strip().upper() for symbol in payload.allowed_symbols if symbol.strip()],
+            allowed_brokers=[broker.strip() for broker in payload.allowed_brokers if broker.strip()],
+            max_quantity=payload.max_quantity,
+            max_daily_strategy_executions=payload.max_daily_strategy_executions,
+        )
+    )
+    audit_service.log_event(
+        event_type="risk_settings_updated",
+        broker_name=None,
+        entity_id=None,
+        payload={
+            "allowed_symbols": updated.allowed_symbols,
+            "allowed_brokers": updated.allowed_brokers,
+            "max_quantity": updated.max_quantity,
+            "max_daily_strategy_executions": updated.max_daily_strategy_executions,
+        },
+    )
+    return RiskSettingsResponse(
+        allowed_symbols=updated.allowed_symbols,
+        allowed_brokers=updated.allowed_brokers,
+        max_quantity=updated.max_quantity,
+        max_daily_strategy_executions=updated.max_daily_strategy_executions,
+    )
 
 
 @app.get("/strategy/summary", response_model=StrategySummaryResponse, tags=["strategy"])
