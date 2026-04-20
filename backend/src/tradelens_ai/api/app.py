@@ -15,6 +15,8 @@ from tradelens_ai.api.mappers import (
 from tradelens_ai.api.order_history_mappers import to_persisted_order_response
 from tradelens_ai.api.schemas import (
     AuditEventResponse,
+    BrokerCredentialProfileResponse,
+    BrokerCredentialProfileUpdateRequest,
     BrokerListResponse,
     BrokerProfileResponse,
     BrokerProfileUpdateRequest,
@@ -32,6 +34,7 @@ from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, Produ
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.broker_credentials_service import BrokerCredentialsService
 from tradelens_ai.services.broker_profile_service import BrokerProfile, BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
@@ -58,6 +61,7 @@ audit_service = AuditService(audit_store)
 order_store = SQLiteOrderStore(db_path)
 order_history_service = OrderHistoryService(order_store)
 broker_profile_service = BrokerProfileService(db_path)
+broker_credentials_service = BrokerCredentialsService(db_path)
 risk_settings_service = RiskSettingsService(db_path)
 risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
@@ -118,6 +122,51 @@ def update_broker_profile(payload: BrokerProfileUpdateRequest) -> BrokerProfileR
         default_exchange=updated.default_exchange,
         default_product_type=updated.default_product_type,
         is_live_enabled=updated.is_live_enabled,
+    )
+
+
+@app.get("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"])
+def get_broker_credentials() -> BrokerCredentialProfileResponse:
+    profile = broker_credentials_service.get_profile()
+    return BrokerCredentialProfileResponse(
+        broker_name=profile.broker_name,
+        client_id_hint=profile.client_id_hint,
+        api_key_hint=profile.api_key_hint,
+        has_access_token=profile.has_access_token,
+        has_api_secret=profile.has_api_secret,
+        updated_at=profile.updated_at,
+    )
+
+
+@app.put("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"])
+def update_broker_credentials(payload: BrokerCredentialProfileUpdateRequest) -> BrokerCredentialProfileResponse:
+    updated = broker_credentials_service.update_profile(
+        broker_name=payload.broker_name.strip(),
+        client_id=payload.client_id,
+        api_key=payload.api_key,
+        access_token=payload.access_token,
+        api_secret=payload.api_secret,
+    )
+    audit_service.log_event(
+        event_type="broker_credentials_updated",
+        broker_name=updated.broker_name,
+        entity_id=None,
+        payload={
+            "broker_name": updated.broker_name,
+            "client_id_hint": updated.client_id_hint,
+            "api_key_hint": updated.api_key_hint,
+            "has_access_token": updated.has_access_token,
+            "has_api_secret": updated.has_api_secret,
+            "updated_at": updated.updated_at,
+        },
+    )
+    return BrokerCredentialProfileResponse(
+        broker_name=updated.broker_name,
+        client_id_hint=updated.client_id_hint,
+        api_key_hint=updated.api_key_hint,
+        has_access_token=updated.has_access_token,
+        has_api_secret=updated.has_api_secret,
+        updated_at=updated.updated_at,
     )
 
 
