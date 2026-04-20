@@ -32,6 +32,13 @@ class BrokerListResponse(BaseModel):
     brokers: list[str]
 
 
+class StrategySummaryResponse(BaseModel):
+    signals_received: int
+    executed: int
+    blocked: int
+    skipped: int
+
+
 class OrderResponse(BaseModel):
     broker: str
     order_id: str
