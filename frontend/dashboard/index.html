@@ -64,6 +64,23 @@
 
     <section class="card wide">
       <div class="card-header">
+        <h2>Recent Strategy Activity</h2>
+        <button id="refreshCharts">Refresh</button>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title">Outcome Distribution</div>
+          <div id="outcomeBars" class="bars"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Latest 12 Signal Events</div>
+          <div id="recentTimeline" class="timeline"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
         <h2>Persisted Order History</h2>
         <button id="refreshOrders">Refresh</button>
       </div>
