@@ -206,15 +206,39 @@ function resetUiSettings() {
   renderUiSettings(DEFAULT_UI_SETTINGS);
 }
 
-function saveBrokerSetup() {
-  const payload = buildBrokerSetupPayload();
-  localStorage.setItem("tradelensBrokerSetup", JSON.stringify(payload));
-  renderBrokerSetup(payload);
+async function loadBrokerSetup() {
+  try {
+    const result = await apiFetch("/broker-profile");
+    localStorage.setItem("tradelensBrokerSetup", JSON.stringify(result));
+    renderBrokerSetup(result);
+  } catch (error) {
+    const fallback = loadStoredBrokerSetup();
+    renderBrokerSetup(fallback);
+    el.brokerSetupResponse.textContent = `Backend unavailable, showing local profile\n${JSON.stringify(fallback, null, 2)}`;
+  }
 }
 
-function resetBrokerSetup() {
-  localStorage.setItem("tradelensBrokerSetup", JSON.stringify(DEFAULT_BROKER_SETUP));
+async function saveBrokerSetup() {
+  const payload = buildBrokerSetupPayload();
+  el.brokerSetupResponse.textContent = "Saving...";
+  try {
+    const result = await apiFetch("/broker-profile", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    localStorage.setItem("tradelensBrokerSetup", JSON.stringify(result));
+    renderBrokerSetup(result);
+    await refreshAuditEvents();
+  } catch (error) {
+    localStorage.setItem("tradelensBrokerSetup", JSON.stringify(payload));
+    renderBrokerSetup(payload);
+    el.brokerSetupResponse.textContent = `Saved locally because backend profile API failed\n${String(error.message || error)}`;
+  }
+}
+
+async function resetBrokerSetup() {
   renderBrokerSetup(DEFAULT_BROKER_SETUP);
+  await saveBrokerSetup();
 }
 
 async function apiFetch(path, options = {}) {
@@ -479,9 +503,8 @@ async function refreshCharts() {
 
 async function initialize() {
   const uiSettings = loadStoredUiSettings();
-  const brokerSetup = loadStoredBrokerSetup();
   renderUiSettings(uiSettings);
-  renderBrokerSetup(brokerSetup);
+  await loadBrokerSetup();
   await Promise.all([
     refreshHealth(),
     refreshBrokers(),
@@ -500,7 +523,7 @@ el.saveApiBaseUrl.addEventListener("click", async () => {
 el.loadUiSettings.addEventListener("click", () => renderUiSettings(loadStoredUiSettings()));
 el.saveUiSettings.addEventListener("click", saveUiSettings);
 el.resetUiSettings.addEventListener("click", resetUiSettings);
-el.loadBrokerSetup.addEventListener("click", () => renderBrokerSetup(loadStoredBrokerSetup()));
+el.loadBrokerSetup.addEventListener("click", loadBrokerSetup);
 el.saveBrokerSetup.addEventListener("click", saveBrokerSetup);
 el.resetBrokerSetup.addEventListener("click", resetBrokerSetup);
 el.refreshHealth.addEventListener("click", refreshHealth);
