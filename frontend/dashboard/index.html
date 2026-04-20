@@ -103,6 +103,51 @@
 
     <section class="card wide">
       <div class="card-header">
+        <h2>Broker Setup</h2>
+        <div class="button-row">
+          <button id="loadBrokerSetup">Reload</button>
+          <button id="resetBrokerSetup">Reset Defaults</button>
+          <button id="saveBrokerSetup">Save</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>
+          Broker Name
+          <input id="brokerSetupName" type="text" value="mock" />
+        </label>
+        <label>
+          Account Label
+          <input id="brokerSetupAccountLabel" type="text" value="Primary Paper Account" />
+        </label>
+        <label>
+          Execution Mode
+          <select id="brokerSetupExecutionMode">
+            <option value="paper">paper</option>
+            <option value="live">live</option>
+          </select>
+        </label>
+        <label>
+          Default Exchange
+          <input id="brokerSetupExchange" type="text" value="NSE" />
+        </label>
+        <label>
+          Default Product Type
+          <select id="brokerSetupProductType">
+            <option value="cnc">cnc</option>
+            <option value="mis">mis</option>
+            <option value="nrml">nrml</option>
+          </select>
+        </label>
+        <label class="checkbox-row broker-live-toggle">
+          <input id="brokerSetupLiveEnabled" type="checkbox" />
+          Live execution enabled
+        </label>
+      </div>
+      <pre id="brokerSetupResponse" class="payload-box compact"></pre>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
         <h2>Risk Settings</h2>
         <div class="button-row">
           <button id="refreshRiskSettings">Reload</button>
