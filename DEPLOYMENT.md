@@ -34,13 +34,25 @@ Configured in `render.yaml`:
 - `TRADELENS_DATABASE_PATH=/var/data/tradelens_ai.db`
 - persistent disk mounted at `/var/data`
 
+### Recommended production CORS setting
+Set your Vercel frontend URL in Render using:
+
+- `TRADELENS_CORS_ORIGINS=https://your-vercel-app.vercel.app`
+
+If you have multiple frontend origins, use a comma-separated list:
+
+- `TRADELENS_CORS_ORIGINS=https://your-vercel-app.vercel.app,https://preview-domain.vercel.app`
+
+For local development, you can leave it unset and the backend will allow all origins.
+
 ### Render deploy steps
 1. Push the repository to GitHub
 2. In Render, choose **New +** -> **Blueprint**
 3. Select this GitHub repository
 4. Render will detect `render.yaml`
 5. Add the missing secret value for `TRADELENS_MASTER_KEY`
-6. Deploy
+6. Add `TRADELENS_CORS_ORIGINS` with your Vercel domain
+7. Deploy
 
 After deploy, verify:
 
@@ -66,13 +78,9 @@ In the dashboard UI:
    - example: `https://your-render-service.onrender.com`
 3. Save UI Settings
 
-## 4. Recommended production follow-up
-
-The backend currently allows broad CORS for development convenience.
-Before production use, restrict CORS to your Vercel domain.
-
-## 5. Notes
+## 4. Notes
 
 - SQLite is acceptable for initial deployment because Render persistent disk is configured
 - for larger scale or multi-instance deployment, move to Postgres later
 - broker credentials are stored server-side and encrypted at rest using `TRADELENS_MASTER_KEY`
+- production CORS is now configurable through `TRADELENS_CORS_ORIGINS`
