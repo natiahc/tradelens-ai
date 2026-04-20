@@ -62,12 +62,22 @@ After deploy, verify:
 
 The repository includes a root `vercel.json` for the static dashboard.
 
+### Vercel import settings
+When importing into Vercel:
+
+- **Framework Preset**: Other
+- **Root Directory**: repository root
+- **Build Command**: leave empty
+- **Install Command**: leave empty
+- **Output Directory**: handled by `vercel.json`
+
 ### Vercel deploy steps
 1. Import the GitHub repository into Vercel
-2. Vercel will use `vercel.json`
-3. Deploy
+2. Keep the project root at the repository root
+3. Let Vercel use the existing `vercel.json`
+4. Deploy
 
-After deploy, open the dashboard.
+After deploy, open the dashboard URL.
 
 ## 3. Connect frontend to backend
 
@@ -84,3 +94,4 @@ In the dashboard UI:
 - for larger scale or multi-instance deployment, move to Postgres later
 - broker credentials are stored server-side and encrypted at rest using `TRADELENS_MASTER_KEY`
 - production CORS is now configurable through `TRADELENS_CORS_ORIGINS`
+- `vercel.json` already points Vercel at `frontend/dashboard`
