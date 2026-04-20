@@ -32,6 +32,24 @@ class BrokerListResponse(BaseModel):
     brokers: list[str]
 
 
+class BrokerProfileResponse(BaseModel):
+    broker_name: str
+    account_label: str
+    execution_mode: str
+    default_exchange: str
+    default_product_type: str
+    is_live_enabled: bool
+
+
+class BrokerProfileUpdateRequest(BaseModel):
+    broker_name: str
+    account_label: str
+    execution_mode: str
+    default_exchange: str
+    default_product_type: str
+    is_live_enabled: bool
+
+
 class StrategySummaryResponse(BaseModel):
     signals_received: int
     executed: int
