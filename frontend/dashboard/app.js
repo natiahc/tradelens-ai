@@ -2,6 +2,13 @@ const state = {
   apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || "http://127.0.0.1:8000",
 };
 
+const DEFAULT_RISK_SETTINGS = {
+  allowed_symbols: ["INFY", "TCS", "RELIANCE", "SBIN"],
+  allowed_brokers: ["mock"],
+  max_quantity: 10,
+  max_daily_strategy_executions: 20,
+};
+
 const el = {
   apiBaseUrl: document.getElementById("apiBaseUrl"),
   saveApiBaseUrl: document.getElementById("saveApiBaseUrl"),
@@ -13,6 +20,7 @@ const el = {
   refreshCharts: document.getElementById("refreshCharts"),
   refreshRiskSettings: document.getElementById("refreshRiskSettings"),
   saveRiskSettings: document.getElementById("saveRiskSettings"),
+  resetRiskSettings: document.getElementById("resetRiskSettings"),
   sendWebhook: document.getElementById("sendWebhook"),
   healthStatus: document.getElementById("healthStatus"),
   healthPayload: document.getElementById("healthPayload"),
@@ -211,13 +219,17 @@ async function refreshRiskSettings() {
   }
 }
 
-async function saveRiskSettings() {
-  const payload = {
+function buildRiskSettingsPayload() {
+  return {
     allowed_symbols: el.riskAllowedSymbols.value.split(",").map((s) => s.trim()).filter(Boolean),
     allowed_brokers: el.riskAllowedBrokers.value.split(",").map((s) => s.trim()).filter(Boolean),
     max_quantity: Number(el.riskMaxQuantity.value),
     max_daily_strategy_executions: Number(el.riskMaxDailyExecutions.value),
   };
+}
+
+async function saveRiskSettings() {
+  const payload = buildRiskSettingsPayload();
   el.riskSettingsResponse.textContent = "Saving...";
   try {
     const result = await apiFetch("/risk/settings", {
@@ -229,6 +241,11 @@ async function saveRiskSettings() {
   } catch (error) {
     el.riskSettingsResponse.textContent = String(error.message || error);
   }
+}
+
+async function resetRiskSettings() {
+  renderRiskSettings(DEFAULT_RISK_SETTINGS);
+  await saveRiskSettings();
 }
 
 async function refreshOrderHistory() {
@@ -322,6 +339,7 @@ el.refreshHealth.addEventListener("click", refreshHealth);
 el.refreshBrokers.addEventListener("click", refreshBrokers);
 el.refreshRiskSettings.addEventListener("click", refreshRiskSettings);
 el.saveRiskSettings.addEventListener("click", saveRiskSettings);
+el.resetRiskSettings.addEventListener("click", resetRiskSettings);
 el.refreshOrders.addEventListener("click", refreshOrderHistory);
 el.refreshAudit.addEventListener("click", refreshAuditEvents);
 el.refreshSummary.addEventListener("click", refreshStrategySummary);
