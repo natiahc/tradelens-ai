@@ -1,3 +1,4 @@
+import os
 import tempfile
 
 from fastapi.testclient import TestClient
@@ -25,7 +26,10 @@ def build_test_client() -> TestClient:
     api_module.audit_service = AuditService(store)
     api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
     api_module.broker_profile_service = BrokerProfileService(temp_db.name)
-    api_module.broker_credentials_service = BrokerCredentialsService(temp_db.name)
+    api_module.broker_credentials_service = BrokerCredentialsService(
+        temp_db.name,
+        encryption_key=os.environ.get("TRADELENS_MASTER_KEY"),
+    )
     api_module.risk_settings_service = RiskSettingsService(temp_db.name)
     api_module.risk_service = StrategyRiskService(store, api_module.risk_settings_service)
     return TestClient(fastapi_app)
