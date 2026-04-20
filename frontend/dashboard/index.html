@@ -39,6 +39,31 @@
 
     <section class="card wide">
       <div class="card-header">
+        <h2>Strategy Signal Summary</h2>
+        <button id="refreshSummary">Refresh</button>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-tile">
+          <span class="summary-label">Signals Received</span>
+          <strong id="summaryReceived">0</strong>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">Executed</span>
+          <strong id="summaryExecuted">0</strong>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">Blocked</span>
+          <strong id="summaryBlocked">0</strong>
+        </div>
+        <div class="summary-tile">
+          <span class="summary-label">Skipped</span>
+          <strong id="summarySkipped">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
         <h2>Persisted Order History</h2>
         <button id="refreshOrders">Refresh</button>
       </div>
