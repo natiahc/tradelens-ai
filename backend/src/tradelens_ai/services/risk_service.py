@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
+from tradelens_ai.services.risk_settings_service import RiskSettingsService
 
 
 @dataclass(slots=True)
@@ -13,18 +14,17 @@ class RiskDecision:
 
 
 class StrategyRiskService:
-    def __init__(self, audit_store: SQLiteStore) -> None:
+    def __init__(self, audit_store: SQLiteStore, risk_settings_service: RiskSettingsService) -> None:
         self._audit_store = audit_store
-        self._allowed_symbols = {"INFY", "TCS", "RELIANCE", "SBIN"}
-        self._allowed_brokers = {"mock"}
-        self._max_quantity = 10
-        self._max_daily_strategy_executions = 20
+        self._risk_settings_service = risk_settings_service
 
     def evaluate(self, *, broker_name: str | None, payload: dict[str, Any]) -> RiskDecision:
+        settings = self._risk_settings_service.get_settings()
+
         if broker_name is None:
             return RiskDecision(False, "Broker is required for strategy execution")
 
-        if broker_name not in self._allowed_brokers:
+        if broker_name not in set(settings.allowed_brokers):
             return RiskDecision(False, f"Broker not allowed for strategy execution: {broker_name}")
 
         order_payload = payload.get("paper_trade_order")
@@ -32,16 +32,16 @@ class StrategyRiskService:
             return RiskDecision(True, "No executable paper_trade_order found")
 
         symbol = str(order_payload.get("symbol", "")).upper()
-        if symbol not in self._allowed_symbols:
+        if symbol not in set(settings.allowed_symbols):
             return RiskDecision(False, f"Symbol not allowed for execution: {symbol}")
 
         quantity = int(order_payload.get("quantity", 0))
         if quantity <= 0:
             return RiskDecision(False, "Quantity must be greater than zero")
-        if quantity > self._max_quantity:
-            return RiskDecision(False, f"Quantity exceeds max limit: {quantity} > {self._max_quantity}")
+        if quantity > settings.max_quantity:
+            return RiskDecision(False, f"Quantity exceeds max limit: {quantity} > {settings.max_quantity}")
 
-        if self._strategy_execution_count_today() >= self._max_daily_strategy_executions:
+        if self._strategy_execution_count_today() >= settings.max_daily_strategy_executions:
             return RiskDecision(False, "Daily strategy execution limit reached")
 
         return RiskDecision(True, "Risk checks passed")
