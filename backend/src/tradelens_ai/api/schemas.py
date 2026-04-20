@@ -39,6 +39,20 @@ class StrategySummaryResponse(BaseModel):
     skipped: int
 
 
+class RiskSettingsResponse(BaseModel):
+    allowed_symbols: list[str]
+    allowed_brokers: list[str]
+    max_quantity: int
+    max_daily_strategy_executions: int
+
+
+class RiskSettingsUpdateRequest(BaseModel):
+    allowed_symbols: list[str]
+    allowed_brokers: list[str]
+    max_quantity: int = Field(..., gt=0)
+    max_daily_strategy_executions: int = Field(..., gt=0)
+
+
 class OrderResponse(BaseModel):
     broker: str
     order_id: str
