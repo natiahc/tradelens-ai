@@ -39,6 +39,70 @@
 
     <section class="card wide">
       <div class="card-header">
+        <h2>UI Settings</h2>
+        <div class="button-row">
+          <button id="loadUiSettings">Reload</button>
+          <button id="resetUiSettings">Reset Defaults</button>
+          <button id="saveUiSettings">Save</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>
+          API Base URL
+          <input id="settingsApiBaseUrl" type="text" value="http://127.0.0.1:8000" />
+        </label>
+        <label>
+          Default Source
+          <input id="settingsWebhookSource" type="text" value="dashboard" />
+        </label>
+        <label>
+          Default Signal Type
+          <input id="settingsWebhookSignalType" type="text" value="entry_long" />
+        </label>
+        <label>
+          Default Broker
+          <input id="settingsWebhookBroker" type="text" value="mock" />
+        </label>
+        <label>
+          Default Symbol
+          <input id="settingsWebhookSymbol" type="text" value="INFY" />
+        </label>
+        <label>
+          Default Exchange
+          <input id="settingsWebhookExchange" type="text" value="NSE" />
+        </label>
+        <label>
+          Default Side
+          <select id="settingsWebhookSide">
+            <option value="buy">buy</option>
+            <option value="sell">sell</option>
+          </select>
+        </label>
+        <label>
+          Default Quantity
+          <input id="settingsWebhookQuantity" type="number" value="2" min="1" />
+        </label>
+        <label>
+          Default Order Type
+          <select id="settingsWebhookOrderType">
+            <option value="market">market</option>
+            <option value="limit">limit</option>
+          </select>
+        </label>
+        <label>
+          Default Product Type
+          <select id="settingsWebhookProductType">
+            <option value="cnc">cnc</option>
+            <option value="mis">mis</option>
+            <option value="nrml">nrml</option>
+          </select>
+        </label>
+      </div>
+      <pre id="uiSettingsResponse" class="payload-box compact"></pre>
+    </section>
+
+    <section class="card wide">
+      <div class="card-header">
         <h2>Risk Settings</h2>
         <div class="button-row">
           <button id="refreshRiskSettings">Reload</button>
