@@ -9,11 +9,13 @@ from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
+from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.trading_service import TradingService
 
 
 def build_test_client() -> TestClient:
     api_module.service = TradingService(build_default_registry())
+    api_module.strategy_execution_service = StrategyExecutionService(api_module.service)
     temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     api_module.audit_service = AuditService(SQLiteStore(temp_db.name))
     api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
@@ -149,7 +151,7 @@ def test_audit_events_endpoint_contains_order_activity():
 
 
 
-def test_strategy_webhook_creates_audit_event():
+def test_strategy_webhook_skipped_without_paper_trade_order():
     client = build_test_client()
 
     webhook_response = client.post(
@@ -162,12 +164,56 @@ def test_strategy_webhook_creates_audit_event():
         },
     )
     assert webhook_response.status_code == 200
-    assert webhook_response.json()["status"] == "accepted"
+    body = webhook_response.json()
+    assert body["status"] == "accepted"
+    assert body["executed"] is False
 
     audit_response = client.get("/audit/events")
     events = audit_response.json()
     event_types = {event["event_type"] for event in events}
     assert "strategy_signal_received" in event_types
+    assert "strategy_signal_skipped" in event_types
+
+
+
+def test_strategy_webhook_executes_paper_trade_and_persists_order():
+    client = build_test_client()
+
+    webhook_response = client.post(
+        "/webhooks/strategy",
+        json={
+            "source": "tv-bridge",
+            "signal_type": "entry_long",
+            "broker": "mock",
+            "payload": {
+                "paper_trade_order": {
+                    "symbol": "INFY",
+                    "exchange": "NSE",
+                    "side": "buy",
+                    "quantity": 2,
+                    "order_type": "market",
+                    "product_type": "cnc",
+                    "client_order_id": "sig-1"
+                }
+            }
+        },
+    )
+    assert webhook_response.status_code == 200
+    body = webhook_response.json()
+    assert body["status"] == "accepted"
+    assert body["executed"] is True
+    assert body["order"]["symbol"] == "INFY"
+
+    history_response = client.get("/orders/history")
+    history = history_response.json()
+    assert len(history) >= 1
+    assert history[0]["symbol"] == "INFY"
+
+    audit_response = client.get("/audit/events")
+    events = audit_response.json()
+    event_types = {event["event_type"] for event in events}
+    assert "strategy_signal_received" in event_types
+    assert "strategy_signal_executed" in event_types
 
 
 
