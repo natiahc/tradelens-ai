@@ -11,6 +11,15 @@ const DEFAULT_UI_SETTINGS = {
   webhook_product_type: "cnc",
 };
 
+const DEFAULT_BROKER_SETUP = {
+  broker_name: "mock",
+  account_label: "Primary Paper Account",
+  execution_mode: "paper",
+  default_exchange: "NSE",
+  default_product_type: "cnc",
+  is_live_enabled: false,
+};
+
 const state = {
   apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || DEFAULT_UI_SETTINGS.api_base_url,
 };
@@ -34,6 +43,9 @@ const el = {
   loadUiSettings: document.getElementById("loadUiSettings"),
   saveUiSettings: document.getElementById("saveUiSettings"),
   resetUiSettings: document.getElementById("resetUiSettings"),
+  loadBrokerSetup: document.getElementById("loadBrokerSetup"),
+  saveBrokerSetup: document.getElementById("saveBrokerSetup"),
+  resetBrokerSetup: document.getElementById("resetBrokerSetup"),
   refreshRiskSettings: document.getElementById("refreshRiskSettings"),
   saveRiskSettings: document.getElementById("saveRiskSettings"),
   resetRiskSettings: document.getElementById("resetRiskSettings"),
@@ -68,6 +80,13 @@ const el = {
   settingsWebhookOrderType: document.getElementById("settingsWebhookOrderType"),
   settingsWebhookProductType: document.getElementById("settingsWebhookProductType"),
   uiSettingsResponse: document.getElementById("uiSettingsResponse"),
+  brokerSetupName: document.getElementById("brokerSetupName"),
+  brokerSetupAccountLabel: document.getElementById("brokerSetupAccountLabel"),
+  brokerSetupExecutionMode: document.getElementById("brokerSetupExecutionMode"),
+  brokerSetupExchange: document.getElementById("brokerSetupExchange"),
+  brokerSetupProductType: document.getElementById("brokerSetupProductType"),
+  brokerSetupLiveEnabled: document.getElementById("brokerSetupLiveEnabled"),
+  brokerSetupResponse: document.getElementById("brokerSetupResponse"),
   riskAllowedSymbols: document.getElementById("riskAllowedSymbols"),
   riskAllowedBrokers: document.getElementById("riskAllowedBrokers"),
   riskMaxQuantity: document.getElementById("riskMaxQuantity"),
@@ -95,6 +114,16 @@ function loadStoredUiSettings() {
   }
 }
 
+function loadStoredBrokerSetup() {
+  try {
+    const raw = localStorage.getItem("tradelensBrokerSetup");
+    if (!raw) return { ...DEFAULT_BROKER_SETUP };
+    return { ...DEFAULT_BROKER_SETUP, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_BROKER_SETUP };
+  }
+}
+
 function renderUiSettings(settings) {
   el.settingsApiBaseUrl.value = settings.api_base_url;
   el.settingsWebhookSource.value = settings.webhook_source;
@@ -110,6 +139,17 @@ function renderUiSettings(settings) {
   applyUiSettingsToDashboard(settings);
 }
 
+function renderBrokerSetup(setup) {
+  el.brokerSetupName.value = setup.broker_name;
+  el.brokerSetupAccountLabel.value = setup.account_label;
+  el.brokerSetupExecutionMode.value = setup.execution_mode;
+  el.brokerSetupExchange.value = setup.default_exchange;
+  el.brokerSetupProductType.value = setup.default_product_type;
+  el.brokerSetupLiveEnabled.checked = Boolean(setup.is_live_enabled);
+  el.brokerSetupResponse.textContent = JSON.stringify(setup, null, 2);
+  applyBrokerSetupToDashboard(setup);
+}
+
 function applyUiSettingsToDashboard(settings) {
   setApiBaseUrl(settings.api_base_url);
   el.webhookSource.value = settings.webhook_source;
@@ -121,6 +161,12 @@ function applyUiSettingsToDashboard(settings) {
   el.webhookQuantity.value = String(settings.webhook_quantity);
   el.webhookOrderType.value = settings.webhook_order_type;
   el.webhookProductType.value = settings.webhook_product_type;
+}
+
+function applyBrokerSetupToDashboard(setup) {
+  el.webhookBroker.value = setup.broker_name;
+  el.webhookExchange.value = setup.default_exchange;
+  el.webhookProductType.value = setup.default_product_type;
 }
 
 function buildUiSettingsPayload() {
@@ -138,6 +184,17 @@ function buildUiSettingsPayload() {
   };
 }
 
+function buildBrokerSetupPayload() {
+  return {
+    broker_name: el.brokerSetupName.value.trim() || DEFAULT_BROKER_SETUP.broker_name,
+    account_label: el.brokerSetupAccountLabel.value.trim() || DEFAULT_BROKER_SETUP.account_label,
+    execution_mode: el.brokerSetupExecutionMode.value,
+    default_exchange: el.brokerSetupExchange.value.trim() || DEFAULT_BROKER_SETUP.default_exchange,
+    default_product_type: el.brokerSetupProductType.value,
+    is_live_enabled: Boolean(el.brokerSetupLiveEnabled.checked),
+  };
+}
+
 function saveUiSettings() {
   const payload = buildUiSettingsPayload();
   localStorage.setItem("tradelensUiSettings", JSON.stringify(payload));
@@ -147,6 +204,17 @@ function saveUiSettings() {
 function resetUiSettings() {
   localStorage.setItem("tradelensUiSettings", JSON.stringify(DEFAULT_UI_SETTINGS));
   renderUiSettings(DEFAULT_UI_SETTINGS);
+}
+
+function saveBrokerSetup() {
+  const payload = buildBrokerSetupPayload();
+  localStorage.setItem("tradelensBrokerSetup", JSON.stringify(payload));
+  renderBrokerSetup(payload);
+}
+
+function resetBrokerSetup() {
+  localStorage.setItem("tradelensBrokerSetup", JSON.stringify(DEFAULT_BROKER_SETUP));
+  renderBrokerSetup(DEFAULT_BROKER_SETUP);
 }
 
 async function apiFetch(path, options = {}) {
@@ -411,7 +479,9 @@ async function refreshCharts() {
 
 async function initialize() {
   const uiSettings = loadStoredUiSettings();
+  const brokerSetup = loadStoredBrokerSetup();
   renderUiSettings(uiSettings);
+  renderBrokerSetup(brokerSetup);
   await Promise.all([
     refreshHealth(),
     refreshBrokers(),
@@ -430,6 +500,9 @@ el.saveApiBaseUrl.addEventListener("click", async () => {
 el.loadUiSettings.addEventListener("click", () => renderUiSettings(loadStoredUiSettings()));
 el.saveUiSettings.addEventListener("click", saveUiSettings);
 el.resetUiSettings.addEventListener("click", resetUiSettings);
+el.loadBrokerSetup.addEventListener("click", () => renderBrokerSetup(loadStoredBrokerSetup()));
+el.saveBrokerSetup.addEventListener("click", saveBrokerSetup);
+el.resetBrokerSetup.addEventListener("click", resetBrokerSetup);
 el.refreshHealth.addEventListener("click", refreshHealth);
 el.refreshBrokers.addEventListener("click", refreshBrokers);
 el.refreshRiskSettings.addEventListener("click", refreshRiskSettings);
