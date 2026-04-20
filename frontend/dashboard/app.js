@@ -10,6 +10,7 @@ const el = {
   refreshOrders: document.getElementById("refreshOrders"),
   refreshAudit: document.getElementById("refreshAudit"),
   refreshSummary: document.getElementById("refreshSummary"),
+  refreshCharts: document.getElementById("refreshCharts"),
   sendWebhook: document.getElementById("sendWebhook"),
   healthStatus: document.getElementById("healthStatus"),
   healthPayload: document.getElementById("healthPayload"),
@@ -17,6 +18,8 @@ const el = {
   orderHistoryBody: document.getElementById("orderHistoryBody"),
   auditBody: document.getElementById("auditBody"),
   auditPayload: document.getElementById("auditPayload"),
+  outcomeBars: document.getElementById("outcomeBars"),
+  recentTimeline: document.getElementById("recentTimeline"),
   webhookResponse: document.getElementById("webhookResponse"),
   webhookSource: document.getElementById("webhookSource"),
   webhookSignalType: document.getElementById("webhookSignalType"),
@@ -111,6 +114,7 @@ function renderAuditEvents(data) {
     el.auditBody.appendChild(tr);
   }
   el.auditPayload.textContent = JSON.stringify(data, null, 2);
+  renderRecentTimeline(data || []);
 }
 
 function renderStrategySummary(summary) {
@@ -118,6 +122,52 @@ function renderStrategySummary(summary) {
   el.summaryExecuted.textContent = String(summary.executed ?? 0);
   el.summaryBlocked.textContent = String(summary.blocked ?? 0);
   el.summarySkipped.textContent = String(summary.skipped ?? 0);
+  renderOutcomeBars(summary);
+}
+
+function renderOutcomeBars(summary) {
+  const rows = [
+    ["Received", summary.signals_received ?? 0],
+    ["Executed", summary.executed ?? 0],
+    ["Blocked", summary.blocked ?? 0],
+    ["Skipped", summary.skipped ?? 0],
+  ];
+  const max = Math.max(1, ...rows.map(([, value]) => value));
+  el.outcomeBars.innerHTML = "";
+
+  for (const [label, value] of rows) {
+    const widthPct = Math.max(6, Math.round((value / max) * 100));
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `
+      <div class="bar-label">${label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${widthPct}%"></div></div>
+      <div class="bar-value">${value}</div>
+    `;
+    el.outcomeBars.appendChild(row);
+  }
+}
+
+function renderRecentTimeline(events) {
+  const filtered = events
+    .filter((event) => event.event_type.startsWith("strategy_signal_"))
+    .slice(0, 12);
+
+  el.recentTimeline.innerHTML = "";
+  if (filtered.length === 0) {
+    el.recentTimeline.innerHTML = '<div class="timeline-item"><div class="timeline-time">-</div><div class="timeline-type">No strategy activity yet</div></div>';
+    return;
+  }
+
+  for (const event of filtered) {
+    const item = document.createElement("div");
+    item.className = "timeline-item";
+    item.innerHTML = `
+      <div class="timeline-time">${event.created_at}</div>
+      <div class="timeline-type">${event.event_type}</div>
+    `;
+    el.recentTimeline.appendChild(item);
+  }
 }
 
 async function refreshHealth() {
@@ -152,6 +202,7 @@ async function refreshAuditEvents() {
   } catch (error) {
     el.auditBody.innerHTML = `<tr><td colspan="5">${error.message || error}</td></tr>`;
     el.auditPayload.textContent = String(error.message || error);
+    renderRecentTimeline([]);
   }
 }
 
@@ -203,6 +254,10 @@ async function sendWebhook() {
   }
 }
 
+async function refreshCharts() {
+  await Promise.all([refreshStrategySummary(), refreshAuditEvents()]);
+}
+
 async function initialize() {
   setApiBaseUrl(state.apiBaseUrl);
   await Promise.all([
@@ -224,6 +279,7 @@ el.refreshBrokers.addEventListener("click", refreshBrokers);
 el.refreshOrders.addEventListener("click", refreshOrderHistory);
 el.refreshAudit.addEventListener("click", refreshAuditEvents);
 el.refreshSummary.addEventListener("click", refreshStrategySummary);
+el.refreshCharts.addEventListener("click", refreshCharts);
 el.sendWebhook.addEventListener("click", sendWebhook);
 
 initialize();
