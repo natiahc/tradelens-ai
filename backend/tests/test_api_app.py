@@ -8,6 +8,7 @@ from tradelens_ai.brokers.registry import build_default_registry
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.broker_profile_service import BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.risk_settings_service import RiskSettingsService
@@ -22,6 +23,7 @@ def build_test_client() -> TestClient:
     store = SQLiteStore(temp_db.name)
     api_module.audit_service = AuditService(store)
     api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
+    api_module.broker_profile_service = BrokerProfileService(temp_db.name)
     api_module.risk_settings_service = RiskSettingsService(temp_db.name)
     api_module.risk_service = StrategyRiskService(store, api_module.risk_settings_service)
     return TestClient(fastapi_app)
@@ -43,6 +45,53 @@ def test_brokers_endpoint_lists_mock_broker():
 
     assert response.status_code == 200
     assert "mock" in response.json()["brokers"]
+
+
+
+def test_get_broker_profile_returns_defaults():
+    client = build_test_client()
+    response = client.get("/broker-profile")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["broker_name"] == "mock"
+    assert body["account_label"] == "Primary Paper Account"
+    assert body["execution_mode"] == "paper"
+    assert body["default_exchange"] == "NSE"
+    assert body["default_product_type"] == "cnc"
+    assert body["is_live_enabled"] is False
+
+
+
+def test_update_broker_profile_persists_new_values():
+    client = build_test_client()
+    response = client.put(
+        "/broker-profile",
+        json={
+            "broker_name": "dhan",
+            "account_label": "Main Trading Account",
+            "execution_mode": "live",
+            "default_exchange": "NSE",
+            "default_product_type": "mis",
+            "is_live_enabled": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["broker_name"] == "dhan"
+    assert body["account_label"] == "Main Trading Account"
+    assert body["execution_mode"] == "live"
+    assert body["default_exchange"] == "NSE"
+    assert body["default_product_type"] == "mis"
+    assert body["is_live_enabled"] is True
+
+    follow_up = client.get("/broker-profile")
+    assert follow_up.status_code == 200
+    persisted = follow_up.json()
+    assert persisted["broker_name"] == "dhan"
+    assert persisted["execution_mode"] == "live"
+    assert persisted["is_live_enabled"] is True
 
 
 
