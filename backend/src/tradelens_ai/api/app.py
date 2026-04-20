@@ -11,20 +11,33 @@ from tradelens_ai.api.mappers import (
     to_order_response,
     to_position_response,
 )
-from tradelens_ai.api.schemas import AuditEventResponse, BrokerListResponse, HealthResponse, PlaceOrderRequest
+from tradelens_ai.api.order_history_mappers import to_persisted_order_response
+from tradelens_ai.api.schemas import (
+    AuditEventResponse,
+    BrokerListResponse,
+    HealthResponse,
+    PersistedOrderResponse,
+    PlaceOrderRequest,
+    StrategyWebhookRequest,
+)
 from tradelens_ai.brokers.registry import build_default_registry
 from tradelens_ai.config.settings import load_settings
 from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, ProductType
+from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.trading_service import TradingService
 
 settings = load_settings()
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 registry = build_default_registry(settings)
 service = TradingService(registry)
-audit_store = SQLiteStore(os.getenv("TRADELENS_DATABASE_PATH", "tradelens_ai.db"))
+db_path = os.getenv("TRADELENS_DATABASE_PATH", "tradelens_ai.db")
+audit_store = SQLiteStore(db_path)
 audit_service = AuditService(audit_store)
+order_store = SQLiteOrderStore(db_path)
+order_history_service = OrderHistoryService(order_store)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
@@ -58,6 +71,7 @@ def place_order(payload: PlaceOrderRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    order_history_service.record_order(order)
     audit_service.log_event(
         event_type="order_placed",
         broker_name=payload.broker,
@@ -82,6 +96,11 @@ def list_orders(broker_name: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/orders/history", response_model=list[PersistedOrderResponse], tags=["orders"])
+def list_persisted_orders(limit: int = 100):
+    return [to_persisted_order_response(order) for order in order_history_service.list_orders(limit=limit)]
+
+
 @app.delete("/orders/{broker_name}/{order_id}", tags=["orders"])
 def cancel_order(broker_name: str, order_id: str):
     try:
@@ -98,6 +117,22 @@ def cancel_order(broker_name: str, order_id: str):
         payload={"order_id": order_id, "broker": broker_name},
     )
     return {"status": "cancelled", "order_id": order_id, "broker": broker_name}
+
+
+@app.post("/webhooks/strategy", tags=["strategy"])
+def strategy_webhook(payload: StrategyWebhookRequest):
+    event_id = audit_service.log_event(
+        event_type="strategy_signal_received",
+        broker_name=payload.broker,
+        entity_id=None,
+        payload={
+            "source": payload.source,
+            "signal_type": payload.signal_type,
+            "broker": payload.broker,
+            "payload": payload.payload,
+        },
+    )
+    return {"status": "accepted", "event_id": event_id}
 
 
 @app.get("/positions/{broker_name}", tags=["portfolio"])
