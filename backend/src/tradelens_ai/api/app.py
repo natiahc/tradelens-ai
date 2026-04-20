@@ -27,12 +27,14 @@ from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.order_history_service import OrderHistoryService
+from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.trading_service import TradingService
 
 settings = load_settings()
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 registry = build_default_registry(settings)
 service = TradingService(registry)
+strategy_execution_service = StrategyExecutionService(service)
 db_path = os.getenv("TRADELENS_DATABASE_PATH", "tradelens_ai.db")
 audit_store = SQLiteStore(db_path)
 audit_service = AuditService(audit_store)
@@ -132,7 +134,43 @@ def strategy_webhook(payload: StrategyWebhookRequest):
             "payload": payload.payload,
         },
     )
-    return {"status": "accepted", "event_id": event_id}
+
+    execution = strategy_execution_service.maybe_execute_signal(
+        broker_name=payload.broker,
+        signal_type=payload.signal_type,
+        payload=payload.payload,
+    )
+
+    response = {"status": "accepted", "event_id": event_id, "executed": execution.executed}
+
+    if execution.order is not None:
+        order_history_service.record_order(execution.order)
+        audit_service.log_event(
+            event_type="strategy_signal_executed",
+            broker_name=execution.broker,
+            entity_id=execution.order.order_id,
+            payload={
+                "signal_type": payload.signal_type,
+                "source": payload.source,
+                "order_id": execution.order.order_id,
+                "reason": execution.reason,
+            },
+        )
+        response["order"] = to_order_response(execution.order).model_dump()
+    else:
+        audit_service.log_event(
+            event_type="strategy_signal_skipped",
+            broker_name=execution.broker,
+            entity_id=None,
+            payload={
+                "signal_type": payload.signal_type,
+                "source": payload.source,
+                "reason": execution.reason,
+            },
+        )
+        response["reason"] = execution.reason
+
+    return response
 
 
 @app.get("/positions/{broker_name}", tags=["portfolio"])
