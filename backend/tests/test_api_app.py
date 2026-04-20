@@ -5,8 +5,10 @@ from fastapi.testclient import TestClient
 from tradelens_ai.api import app as fastapi_app
 from tradelens_ai.api import app as api_module
 from tradelens_ai.brokers.registry import build_default_registry
+from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.trading_service import TradingService
 
 
@@ -14,6 +16,7 @@ def build_test_client() -> TestClient:
     api_module.service = TradingService(build_default_registry())
     temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     api_module.audit_service = AuditService(SQLiteStore(temp_db.name))
+    api_module.order_history_service = OrderHistoryService(SQLiteOrderStore(temp_db.name))
     return TestClient(fastapi_app)
 
 
@@ -61,6 +64,32 @@ def test_place_order_and_list_orders_flow():
     orders = list_response.json()
     assert len(orders) == 1
     assert orders[0]["order_id"] == created["order_id"]
+
+
+
+def test_persisted_order_history_endpoint_contains_placed_order():
+    client = build_test_client()
+
+    create_response = client.post(
+        "/orders",
+        json={
+            "broker": "mock",
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "side": "buy",
+            "quantity": 4,
+            "order_type": "market",
+            "product_type": "cnc"
+        },
+    )
+    created = create_response.json()
+
+    history_response = client.get("/orders/history")
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert len(history) >= 1
+    assert history[0]["order_id"] == created["order_id"]
+    assert history[0]["symbol"] == "RELIANCE"
 
 
 
@@ -117,6 +146,28 @@ def test_audit_events_endpoint_contains_order_activity():
     event_types = {event["event_type"] for event in events}
     assert "order_placed" in event_types
     assert "order_cancelled" in event_types
+
+
+
+def test_strategy_webhook_creates_audit_event():
+    client = build_test_client()
+
+    webhook_response = client.post(
+        "/webhooks/strategy",
+        json={
+            "source": "tv-bridge",
+            "signal_type": "entry_long",
+            "broker": "mock",
+            "payload": {"symbol": "INFY", "timeframe": "5m"}
+        },
+    )
+    assert webhook_response.status_code == 200
+    assert webhook_response.json()["status"] == "accepted"
+
+    audit_response = client.get("/audit/events")
+    events = audit_response.json()
+    event_types = {event["event_type"] for event in events}
+    assert "strategy_signal_received" in event_types
 
 
 
