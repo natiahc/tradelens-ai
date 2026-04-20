@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -21,12 +21,36 @@ class PlaceOrderRequest(BaseModel):
     trigger_price: Optional[float] = None
 
 
+class StrategyWebhookRequest(BaseModel):
+    source: str = Field(..., description="Signal source name")
+    signal_type: str
+    broker: Optional[str] = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class BrokerListResponse(BaseModel):
     brokers: list[str]
 
 
 class OrderResponse(BaseModel):
     broker: str
+    order_id: str
+    symbol: str
+    exchange: str
+    side: str
+    quantity: int
+    filled_quantity: int
+    order_type: str
+    product_type: str
+    status: str
+    price: Optional[float] = None
+    average_price: Optional[float] = None
+    created_at: str
+
+
+class PersistedOrderResponse(BaseModel):
+    record_id: int
+    broker_name: str
     order_id: str
     symbol: str
     exchange: str
