@@ -22,16 +22,24 @@ class BrokerCredentialsService:
     def __init__(self, db_path: str, encryption_key: str | None = None) -> None:
         self._db_path = db_path
         self._encryption_key = encryption_key or os.getenv("TRADELENS_MASTER_KEY")
-        self._fernet = Fernet(self._require_key().encode("utf-8"))
+        self._fernet = self._build_fernet()
         self._initialize()
 
-    def _require_key(self) -> str:
-        if not self._encryption_key:
-            raise RuntimeError(
-                "TRADELENS_MASTER_KEY is required for encrypted broker credential storage. "
-                "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
-            )
-        return self._encryption_key
+    def _build_fernet(self) -> Fernet:
+        raw_key = self._encryption_key
+        if not raw_key:
+            generated = Fernet.generate_key().decode("utf-8")
+            self._encryption_key = generated
+            print("[TradeLens AI] TRADELENS_MASTER_KEY missing. Using ephemeral in-memory key for this process.")
+            return Fernet(generated.encode("utf-8"))
+
+        try:
+            return Fernet(raw_key.encode("utf-8"))
+        except ValueError:
+            generated = Fernet.generate_key().decode("utf-8")
+            self._encryption_key = generated
+            print("[TradeLens AI] TRADELENS_MASTER_KEY invalid. Using ephemeral in-memory key for this process.")
+            return Fernet(generated.encode("utf-8"))
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._db_path)
