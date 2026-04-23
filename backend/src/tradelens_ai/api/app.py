@@ -55,6 +55,13 @@ def _load_cors_origins() -> list[str]:
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
+def _load_cors_origin_regex() -> str | None:
+    raw = os.getenv("TRADELENS_CORS_ORIGIN_REGEX", "").strip()
+    if raw:
+        return raw
+    return r"https://.*\.vercel\.app|http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?"
+
+
 class DisabledBrokerCredentialsService:
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -67,9 +74,11 @@ class DisabledBrokerCredentialsService:
 
 
 cors_origins = _load_cors_origins()
+cors_origin_regex = None if cors_origins == ["*"] else _load_cors_origin_regex()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=False if cors_origins == ["*"] else True,
     allow_methods=["*"],
     allow_headers=["*"],
