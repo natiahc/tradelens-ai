@@ -1,5 +1,5 @@
 const DEFAULT_UI_SETTINGS = {
-  api_base_url: "http://127.0.0.1:8000",
+  api_base_url: "https://tradelens-ai-t8za.onrender.com",
   webhook_source: "dashboard",
   webhook_signal_type: "entry_long",
   webhook_broker: "mock",
