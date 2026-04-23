@@ -1,5 +1,7 @@
+const DEFAULT_DEPLOYED_API_URL = "https://tradelens-ai-t8za.onrender.com";
+
 const DEFAULT_UI_SETTINGS = {
-  api_base_url: "https://tradelens-ai-t8za.onrender.com",
+  api_base_url: DEFAULT_DEPLOYED_API_URL,
   webhook_source: "dashboard",
   webhook_signal_type: "entry_long",
   webhook_broker: "mock",
@@ -31,6 +33,7 @@ const DEFAULT_BROKER_CREDENTIALS = {
 
 const state = {
   apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || DEFAULT_UI_SETTINGS.api_base_url,
+  apiConnectionMessage: "",
 };
 
 const DEFAULT_RISK_SETTINGS = {
@@ -120,8 +123,12 @@ const el = {
   summarySkipped: document.getElementById("summarySkipped"),
 };
 
+function normalizeUrl(url) {
+  return (url || "").trim().replace(/\/$/, "");
+}
+
 function setApiBaseUrl(url) {
-  state.apiBaseUrl = url.replace(/\/$/, "");
+  state.apiBaseUrl = normalizeUrl(url);
   localStorage.setItem("tradelensApiBaseUrl", state.apiBaseUrl);
   el.apiBaseUrl.value = state.apiBaseUrl;
 }
@@ -134,6 +141,10 @@ function loadStoredUiSettings() {
   } catch {
     return { ...DEFAULT_UI_SETTINGS };
   }
+}
+
+function saveUiSettingsToStorage(settings) {
+  localStorage.setItem("tradelensUiSettings", JSON.stringify(settings));
 }
 
 function loadStoredBrokerSetup() {
@@ -156,6 +167,65 @@ function loadStoredBrokerCredentials() {
   }
 }
 
+function isLoopbackApiUrl(url) {
+  try {
+    const parsed = new URL(normalizeUrl(url));
+    return ["127.0.0.1", "localhost", "0.0.0.0"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isNonLocalFrontend() {
+  return typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
+}
+
+async function probeApiUrl(url) {
+  const normalized = normalizeUrl(url);
+  if (!normalized) return false;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(`${normalized}/health`, { method: "GET", signal: controller.signal });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function ensureHealthyApiBaseUrl(uiSettings) {
+  const storedUrl = normalizeUrl(localStorage.getItem("tradelensApiBaseUrl") || uiSettings.api_base_url);
+  const deployedUrl = normalizeUrl(DEFAULT_DEPLOYED_API_URL);
+
+  if (isNonLocalFrontend() && isLoopbackApiUrl(storedUrl)) {
+    setApiBaseUrl(deployedUrl);
+    const updated = { ...uiSettings, api_base_url: deployedUrl };
+    saveUiSettingsToStorage(updated);
+    state.apiConnectionMessage = `Auto-switched API from local URL to deployed backend: ${deployedUrl}`;
+    return updated;
+  }
+
+  const primaryUrl = storedUrl || deployedUrl;
+  setApiBaseUrl(primaryUrl);
+  if (await probeApiUrl(primaryUrl)) {
+    state.apiConnectionMessage = `Connected to API: ${primaryUrl}`;
+    return { ...uiSettings, api_base_url: primaryUrl };
+  }
+
+  if (primaryUrl !== deployedUrl && await probeApiUrl(deployedUrl)) {
+    setApiBaseUrl(deployedUrl);
+    const updated = { ...uiSettings, api_base_url: deployedUrl };
+    saveUiSettingsToStorage(updated);
+    state.apiConnectionMessage = `Saved API was unreachable, switched to deployed backend: ${deployedUrl}`;
+    return updated;
+  }
+
+  state.apiConnectionMessage = `Unable to verify backend connection. Current API URL: ${primaryUrl}`;
+  return { ...uiSettings, api_base_url: primaryUrl };
+}
+
 function renderUiSettings(settings) {
   el.settingsApiBaseUrl.value = settings.api_base_url;
   el.settingsWebhookSource.value = settings.webhook_source;
@@ -167,7 +237,7 @@ function renderUiSettings(settings) {
   el.settingsWebhookQuantity.value = String(settings.webhook_quantity);
   el.settingsWebhookOrderType.value = settings.webhook_order_type;
   el.settingsWebhookProductType.value = settings.webhook_product_type;
-  el.uiSettingsResponse.textContent = JSON.stringify(settings, null, 2);
+  el.uiSettingsResponse.textContent = JSON.stringify({ ...settings, connection_note: state.apiConnectionMessage }, null, 2);
   applyUiSettingsToDashboard(settings);
 }
 
@@ -216,7 +286,7 @@ function applyBrokerSetupToDashboard(setup) {
 
 function buildUiSettingsPayload() {
   return {
-    api_base_url: el.settingsApiBaseUrl.value.trim() || DEFAULT_UI_SETTINGS.api_base_url,
+    api_base_url: normalizeUrl(el.settingsApiBaseUrl.value) || DEFAULT_UI_SETTINGS.api_base_url,
     webhook_source: el.settingsWebhookSource.value.trim() || DEFAULT_UI_SETTINGS.webhook_source,
     webhook_signal_type: el.settingsWebhookSignalType.value.trim() || DEFAULT_UI_SETTINGS.webhook_signal_type,
     webhook_broker: el.settingsWebhookBroker.value.trim() || DEFAULT_UI_SETTINGS.webhook_broker,
@@ -252,12 +322,12 @@ function buildBrokerCredentialsPayload() {
 
 function saveUiSettings() {
   const payload = buildUiSettingsPayload();
-  localStorage.setItem("tradelensUiSettings", JSON.stringify(payload));
+  saveUiSettingsToStorage(payload);
   renderUiSettings(payload);
 }
 
 function resetUiSettings() {
-  localStorage.setItem("tradelensUiSettings", JSON.stringify(DEFAULT_UI_SETTINGS));
+  saveUiSettingsToStorage(DEFAULT_UI_SETTINGS);
   renderUiSettings(DEFAULT_UI_SETTINGS);
 }
 
@@ -366,7 +436,7 @@ async function apiFetch(path, options = {}) {
 function renderHealth(data) {
   el.healthStatus.textContent = data.status || "unknown";
   el.healthStatus.style.background = data.status === "ok" ? "#166534" : "#7c2d12";
-  el.healthPayload.textContent = JSON.stringify(data, null, 2);
+  el.healthPayload.textContent = JSON.stringify({ ...data, api_base_url: state.apiBaseUrl, connection_note: state.apiConnectionMessage }, null, 2);
 }
 
 function renderBrokers(data) {
@@ -480,7 +550,7 @@ async function refreshHealth() {
   } catch (error) {
     el.healthStatus.textContent = "error";
     el.healthStatus.style.background = "#991b1b";
-    el.healthPayload.textContent = String(error.message || error);
+    el.healthPayload.textContent = JSON.stringify({ error: String(error.message || error), api_base_url: state.apiBaseUrl, connection_note: state.apiConnectionMessage }, null, 2);
   }
 }
 
@@ -600,7 +670,8 @@ async function refreshCharts() {
 }
 
 async function initialize() {
-  const uiSettings = loadStoredUiSettings();
+  let uiSettings = loadStoredUiSettings();
+  uiSettings = await ensureHealthyApiBaseUrl(uiSettings);
   renderUiSettings(uiSettings);
   await loadBrokerSetup();
   await loadBrokerCredentials();
@@ -615,7 +686,11 @@ async function initialize() {
 }
 
 el.saveApiBaseUrl.addEventListener("click", async () => {
-  setApiBaseUrl(el.apiBaseUrl.value.trim());
+  const newUrl = normalizeUrl(el.apiBaseUrl.value.trim());
+  setApiBaseUrl(newUrl);
+  const currentSettings = { ...loadStoredUiSettings(), api_base_url: newUrl || DEFAULT_UI_SETTINGS.api_base_url };
+  saveUiSettingsToStorage(currentSettings);
+  state.apiConnectionMessage = `Manual API URL selected: ${state.apiBaseUrl}`;
   await initialize();
 });
 
