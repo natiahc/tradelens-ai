@@ -55,6 +55,17 @@ def _load_cors_origins() -> list[str]:
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
+class DisabledBrokerCredentialsService:
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+    def get_profile(self):
+        raise RuntimeError(self.reason)
+
+    def update_profile(self, **kwargs):
+        raise RuntimeError(self.reason)
+
+
 cors_origins = _load_cors_origins()
 app.add_middleware(
     CORSMiddleware,
@@ -72,7 +83,12 @@ audit_service = AuditService(audit_store)
 order_store = SQLiteOrderStore(db_path)
 order_history_service = OrderHistoryService(order_store)
 broker_profile_service = BrokerProfileService(db_path)
-broker_credentials_service = BrokerCredentialsService(db_path)
+try:
+    broker_credentials_service = BrokerCredentialsService(db_path)
+except Exception as exc:
+    broker_credentials_service = DisabledBrokerCredentialsService(
+        f"Broker credentials service is unavailable: {exc}"
+    )
 risk_settings_service = RiskSettingsService(db_path)
 risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
@@ -138,7 +154,10 @@ def update_broker_profile(payload: BrokerProfileUpdateRequest) -> BrokerProfileR
 
 @app.get("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"])
 def get_broker_credentials() -> BrokerCredentialProfileResponse:
-    profile = broker_credentials_service.get_profile()
+    try:
+        profile = broker_credentials_service.get_profile()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return BrokerCredentialProfileResponse(
         broker_name=profile.broker_name,
         client_id_hint=profile.client_id_hint,
@@ -151,13 +170,16 @@ def get_broker_credentials() -> BrokerCredentialProfileResponse:
 
 @app.put("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"])
 def update_broker_credentials(payload: BrokerCredentialProfileUpdateRequest) -> BrokerCredentialProfileResponse:
-    updated = broker_credentials_service.update_profile(
-        broker_name=payload.broker_name.strip(),
-        client_id=payload.client_id,
-        api_key=payload.api_key,
-        access_token=payload.access_token,
-        api_secret=payload.api_secret,
-    )
+    try:
+        updated = broker_credentials_service.update_profile(
+            broker_name=payload.broker_name.strip(),
+            client_id=payload.client_id,
+            api_key=payload.api_key,
+            access_token=payload.access_token,
+            api_secret=payload.api_secret,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     audit_service.log_event(
         event_type="broker_credentials_updated",
         broker_name=updated.broker_name,
