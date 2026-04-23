@@ -31,16 +31,17 @@ const DEFAULT_BROKER_CREDENTIALS = {
   updated_at: "",
 };
 
-const state = {
-  apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || DEFAULT_UI_SETTINGS.api_base_url,
-  apiConnectionMessage: "",
-};
-
 const DEFAULT_RISK_SETTINGS = {
   allowed_symbols: ["INFY", "TCS", "RELIANCE", "SBIN"],
   allowed_brokers: ["mock"],
   max_quantity: 10,
   max_daily_strategy_executions: 20,
+};
+
+const state = {
+  apiBaseUrl: localStorage.getItem("tradelensApiBaseUrl") || DEFAULT_UI_SETTINGS.api_base_url,
+  apiConnectionMessage: "",
+  bannerTimer: null,
 };
 
 const el = {
@@ -65,6 +66,7 @@ const el = {
   saveRiskSettings: document.getElementById("saveRiskSettings"),
   resetRiskSettings: document.getElementById("resetRiskSettings"),
   sendWebhook: document.getElementById("sendWebhook"),
+  statusBanner: document.getElementById("statusBanner"),
   healthStatus: document.getElementById("healthStatus"),
   healthPayload: document.getElementById("healthPayload"),
   brokerList: document.getElementById("brokerList"),
@@ -131,6 +133,52 @@ function setApiBaseUrl(url) {
   state.apiBaseUrl = normalizeUrl(url);
   localStorage.setItem("tradelensApiBaseUrl", state.apiBaseUrl);
   el.apiBaseUrl.value = state.apiBaseUrl;
+}
+
+function showBanner(message, type = "info", persist = false) {
+  if (!el.statusBanner) return;
+  if (state.bannerTimer) {
+    clearTimeout(state.bannerTimer);
+    state.bannerTimer = null;
+  }
+  el.statusBanner.textContent = message;
+  el.statusBanner.className = `status-banner status-banner-${type}`;
+  if (!persist) {
+    state.bannerTimer = setTimeout(() => {
+      el.statusBanner.className = "status-banner status-banner-hidden";
+    }, 2800);
+  }
+}
+
+function setButtonBusy(button, busy, busyText) {
+  if (!button) return;
+  if (busy) {
+    if (!button.dataset.originalText) {
+      button.dataset.originalText = button.textContent;
+    }
+    button.textContent = busyText;
+    button.disabled = true;
+    button.classList.add("is-busy");
+  } else {
+    button.textContent = button.dataset.originalText || button.textContent;
+    button.disabled = false;
+    button.classList.remove("is-busy");
+  }
+}
+
+async function runButtonAction(button, busyText, startMessage, successMessage, action, errorMessage) {
+  try {
+    setButtonBusy(button, true, busyText);
+    showBanner(startMessage, "info", true);
+    const result = await action();
+    showBanner(successMessage, "success");
+    return result;
+  } catch (error) {
+    showBanner(`${errorMessage}: ${String(error.message || error)}`, "error");
+    throw error;
+  } finally {
+    setButtonBusy(button, false);
+  }
 }
 
 function loadStoredUiSettings() {
@@ -427,7 +475,7 @@ async function apiFetch(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(body.detail || `Request failed: ${response.status}`);
+    throw new Error(body.detail || body.raw || `Request failed: ${response.status}`);
   }
 
   return body;
@@ -551,6 +599,7 @@ async function refreshHealth() {
     el.healthStatus.textContent = "error";
     el.healthStatus.style.background = "#991b1b";
     el.healthPayload.textContent = JSON.stringify({ error: String(error.message || error), api_base_url: state.apiBaseUrl, connection_note: state.apiConnectionMessage }, null, 2);
+    throw error;
   }
 }
 
@@ -559,6 +608,7 @@ async function refreshBrokers() {
     renderBrokers(await apiFetch("/brokers"));
   } catch (error) {
     el.brokerList.innerHTML = `<li>${error.message || error}</li>`;
+    throw error;
   }
 }
 
@@ -567,6 +617,7 @@ async function refreshRiskSettings() {
     renderRiskSettings(await apiFetch("/risk/settings"));
   } catch (error) {
     el.riskSettingsResponse.textContent = String(error.message || error);
+    throw error;
   }
 }
 
@@ -591,6 +642,7 @@ async function saveRiskSettings() {
     await refreshAuditEvents();
   } catch (error) {
     el.riskSettingsResponse.textContent = String(error.message || error);
+    throw error;
   }
 }
 
@@ -604,6 +656,7 @@ async function refreshOrderHistory() {
     renderOrderHistory(await apiFetch("/orders/history"));
   } catch (error) {
     el.orderHistoryBody.innerHTML = `<tr><td colspan="8">${error.message || error}</td></tr>`;
+    throw error;
   }
 }
 
@@ -614,6 +667,7 @@ async function refreshAuditEvents() {
     el.auditBody.innerHTML = `<tr><td colspan="5">${error.message || error}</td></tr>`;
     el.auditPayload.textContent = String(error.message || error);
     renderRecentTimeline([]);
+    throw error;
   }
 }
 
@@ -622,6 +676,7 @@ async function refreshStrategySummary() {
     renderStrategySummary(await apiFetch("/strategy/summary"));
   } catch (error) {
     renderStrategySummary({ signals_received: 0, executed: 0, blocked: 0, skipped: 0 });
+    throw error;
   }
 }
 
@@ -659,23 +714,33 @@ async function sendWebhook() {
     el.webhookResponse.textContent = JSON.stringify(result, null, 2);
     await refreshOrderHistory();
     await refreshAuditEvents();
-    await refreshStrategySummary();
+    try {
+      await refreshStrategySummary();
+    } catch {
+      // summary fallback already rendered
+    }
   } catch (error) {
     el.webhookResponse.textContent = String(error.message || error);
+    throw error;
   }
 }
 
 async function refreshCharts() {
-  await Promise.all([refreshStrategySummary(), refreshAuditEvents()]);
+  const results = await Promise.allSettled([refreshStrategySummary(), refreshAuditEvents()]);
+  const hasFailure = results.some((result) => result.status === "rejected");
+  if (hasFailure) {
+    throw new Error("Some dashboard charts could not be refreshed.");
+  }
 }
 
 async function initialize() {
+  showBanner("Loading dashboard…", "info", true);
   let uiSettings = loadStoredUiSettings();
   uiSettings = await ensureHealthyApiBaseUrl(uiSettings);
   renderUiSettings(uiSettings);
-  await loadBrokerSetup();
-  await loadBrokerCredentials();
-  await Promise.all([
+  await Promise.allSettled([
+    loadBrokerSetup(),
+    loadBrokerCredentials(),
     refreshHealth(),
     refreshBrokers(),
     refreshRiskSettings(),
@@ -683,35 +748,107 @@ async function initialize() {
     refreshAuditEvents(),
     refreshStrategySummary(),
   ]);
+  showBanner("Dashboard ready.", "success");
 }
 
 el.saveApiBaseUrl.addEventListener("click", async () => {
-  const newUrl = normalizeUrl(el.apiBaseUrl.value.trim());
-  setApiBaseUrl(newUrl);
-  const currentSettings = { ...loadStoredUiSettings(), api_base_url: newUrl || DEFAULT_UI_SETTINGS.api_base_url };
-  saveUiSettingsToStorage(currentSettings);
-  state.apiConnectionMessage = `Manual API URL selected: ${state.apiBaseUrl}`;
-  await initialize();
+  await runButtonAction(
+    el.saveApiBaseUrl,
+    "Connecting…",
+    "Connecting to backend…",
+    "Backend connection updated.",
+    async () => {
+      const newUrl = normalizeUrl(el.apiBaseUrl.value.trim());
+      setApiBaseUrl(newUrl);
+      const currentSettings = { ...loadStoredUiSettings(), api_base_url: newUrl || DEFAULT_UI_SETTINGS.api_base_url };
+      saveUiSettingsToStorage(currentSettings);
+      state.apiConnectionMessage = `Manual API URL selected: ${state.apiBaseUrl}`;
+      await initialize();
+    },
+    "Unable to connect"
+  );
 });
 
-el.loadUiSettings.addEventListener("click", () => renderUiSettings(loadStoredUiSettings()));
-el.saveUiSettings.addEventListener("click", saveUiSettings);
-el.resetUiSettings.addEventListener("click", resetUiSettings);
-el.loadBrokerSetup.addEventListener("click", loadBrokerSetup);
-el.saveBrokerSetup.addEventListener("click", saveBrokerSetup);
-el.resetBrokerSetup.addEventListener("click", resetBrokerSetup);
-el.loadBrokerCredentials.addEventListener("click", loadBrokerCredentials);
-el.saveBrokerCredentials.addEventListener("click", saveBrokerCredentials);
-el.resetBrokerCredentials.addEventListener("click", resetBrokerCredentials);
-el.refreshHealth.addEventListener("click", refreshHealth);
-el.refreshBrokers.addEventListener("click", refreshBrokers);
-el.refreshRiskSettings.addEventListener("click", refreshRiskSettings);
-el.saveRiskSettings.addEventListener("click", saveRiskSettings);
-el.resetRiskSettings.addEventListener("click", resetRiskSettings);
-el.refreshOrders.addEventListener("click", refreshOrderHistory);
-el.refreshAudit.addEventListener("click", refreshAuditEvents);
-el.refreshSummary.addEventListener("click", refreshStrategySummary);
-el.refreshCharts.addEventListener("click", refreshCharts);
-el.sendWebhook.addEventListener("click", sendWebhook);
+el.loadUiSettings.addEventListener("click", async () => {
+  await runButtonAction(el.loadUiSettings, "Reloading…", "Reloading UI settings…", "UI settings reloaded.", async () => {
+    renderUiSettings(loadStoredUiSettings());
+  }, "Unable to reload UI settings");
+});
+
+el.saveUiSettings.addEventListener("click", async () => {
+  await runButtonAction(el.saveUiSettings, "Saving…", "Saving UI settings…", "UI settings saved.", async () => {
+    saveUiSettings();
+  }, "Unable to save UI settings");
+});
+
+el.resetUiSettings.addEventListener("click", async () => {
+  await runButtonAction(el.resetUiSettings, "Resetting…", "Resetting UI settings…", "UI settings reset.", async () => {
+    resetUiSettings();
+  }, "Unable to reset UI settings");
+});
+
+el.loadBrokerSetup.addEventListener("click", async () => {
+  await runButtonAction(el.loadBrokerSetup, "Reloading…", "Loading broker setup…", "Broker setup loaded.", loadBrokerSetup, "Unable to load broker setup");
+});
+
+el.saveBrokerSetup.addEventListener("click", async () => {
+  await runButtonAction(el.saveBrokerSetup, "Saving…", "Saving broker setup…", "Broker setup saved.", saveBrokerSetup, "Unable to save broker setup");
+});
+
+el.resetBrokerSetup.addEventListener("click", async () => {
+  await runButtonAction(el.resetBrokerSetup, "Resetting…", "Resetting broker setup…", "Broker setup reset.", resetBrokerSetup, "Unable to reset broker setup");
+});
+
+el.loadBrokerCredentials.addEventListener("click", async () => {
+  await runButtonAction(el.loadBrokerCredentials, "Reloading…", "Loading broker credentials…", "Broker credentials loaded.", loadBrokerCredentials, "Unable to load broker credentials");
+});
+
+el.saveBrokerCredentials.addEventListener("click", async () => {
+  await runButtonAction(el.saveBrokerCredentials, "Saving…", "Saving broker credentials…", "Broker credentials saved.", saveBrokerCredentials, "Unable to save broker credentials");
+});
+
+el.resetBrokerCredentials.addEventListener("click", async () => {
+  await runButtonAction(el.resetBrokerCredentials, "Resetting…", "Resetting broker credentials…", "Broker credentials reset.", resetBrokerCredentials, "Unable to reset broker credentials");
+});
+
+el.refreshHealth.addEventListener("click", async () => {
+  await runButtonAction(el.refreshHealth, "Refreshing…", "Refreshing system status…", "System status refreshed.", refreshHealth, "Unable to refresh system status");
+});
+
+el.refreshBrokers.addEventListener("click", async () => {
+  await runButtonAction(el.refreshBrokers, "Refreshing…", "Refreshing brokers…", "Broker list refreshed.", refreshBrokers, "Unable to refresh brokers");
+});
+
+el.refreshRiskSettings.addEventListener("click", async () => {
+  await runButtonAction(el.refreshRiskSettings, "Reloading…", "Reloading risk settings…", "Risk settings loaded.", refreshRiskSettings, "Unable to load risk settings");
+});
+
+el.saveRiskSettings.addEventListener("click", async () => {
+  await runButtonAction(el.saveRiskSettings, "Saving…", "Saving risk settings…", "Risk settings saved.", saveRiskSettings, "Unable to save risk settings");
+});
+
+el.resetRiskSettings.addEventListener("click", async () => {
+  await runButtonAction(el.resetRiskSettings, "Resetting…", "Resetting risk settings…", "Risk settings reset.", resetRiskSettings, "Unable to reset risk settings");
+});
+
+el.refreshOrders.addEventListener("click", async () => {
+  await runButtonAction(el.refreshOrders, "Refreshing…", "Refreshing order history…", "Order history refreshed.", refreshOrderHistory, "Unable to refresh order history");
+});
+
+el.refreshAudit.addEventListener("click", async () => {
+  await runButtonAction(el.refreshAudit, "Refreshing…", "Refreshing audit events…", "Audit events refreshed.", refreshAuditEvents, "Unable to refresh audit events");
+});
+
+el.refreshSummary.addEventListener("click", async () => {
+  await runButtonAction(el.refreshSummary, "Refreshing…", "Refreshing strategy summary…", "Strategy summary refreshed.", refreshStrategySummary, "Unable to refresh strategy summary");
+});
+
+el.refreshCharts.addEventListener("click", async () => {
+  await runButtonAction(el.refreshCharts, "Refreshing…", "Refreshing charts…", "Charts refreshed.", refreshCharts, "Unable to refresh charts");
+});
+
+el.sendWebhook.addEventListener("click", async () => {
+  await runButtonAction(el.sendWebhook, "Sending…", "Sending webhook…", "Webhook sent.", sendWebhook, "Unable to send webhook");
+});
 
 initialize();
