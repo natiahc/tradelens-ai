@@ -28,6 +28,7 @@ from tradelens_ai.api.schemas import (
     StrategySummaryResponse,
     StrategyWebhookRequest,
 )
+from tradelens_ai.brokers.dhan import DhanBrokerAdapter
 from tradelens_ai.brokers.registry import build_default_registry
 from tradelens_ai.config.settings import load_settings
 from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, ProductType
@@ -72,6 +73,9 @@ class DisabledBrokerCredentialsService:
     def update_profile(self, **kwargs):
         raise RuntimeError(self.reason)
 
+    def reveal_secrets(self):
+        raise RuntimeError(self.reason)
+
 
 cors_origins = _load_cors_origins()
 cors_origin_regex = None if cors_origins == ["*"] else _load_cors_origin_regex()
@@ -103,6 +107,23 @@ risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
 
 
+def _sync_dynamic_brokers_from_credentials() -> None:
+    try:
+        secrets = broker_credentials_service.reveal_secrets()
+    except RuntimeError:
+        return
+
+    broker_name = str(secrets.get("broker_name") or "").strip().lower()
+    client_id = str(secrets.get("client_id") or "").strip()
+    access_token = str(secrets.get("access_token") or "").strip()
+
+    if broker_name == "dhan" and client_id and access_token:
+        registry.register(DhanBrokerAdapter(client_id=client_id, access_token=access_token))
+
+
+_sync_dynamic_brokers_from_credentials()
+
+
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 def health() -> HealthResponse:
     return HealthResponse()
@@ -110,6 +131,7 @@ def health() -> HealthResponse:
 
 @app.get("/brokers", response_model=BrokerListResponse, tags=["brokers"])
 def list_brokers() -> BrokerListResponse:
+    _sync_dynamic_brokers_from_credentials()
     return BrokerListResponse(brokers=service.list_brokers())
 
 
@@ -187,6 +209,7 @@ def update_broker_credentials(payload: BrokerCredentialProfileUpdateRequest) -> 
             access_token=payload.access_token,
             api_secret=payload.api_secret,
         )
+        _sync_dynamic_brokers_from_credentials()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     audit_service.log_event(
@@ -265,6 +288,7 @@ def get_strategy_summary() -> StrategySummaryResponse:
 
 @app.post("/orders", tags=["orders"])
 def place_order(payload: PlaceOrderRequest):
+    _sync_dynamic_brokers_from_credentials()
     try:
         order = service.place_order(
             payload.broker,
@@ -308,6 +332,7 @@ def list_persisted_orders(limit: int = 100):
 
 @app.get("/orders/{broker_name}", tags=["orders"])
 def list_orders(broker_name: str):
+    _sync_dynamic_brokers_from_credentials()
     try:
         return [to_order_response(order) for order in service.list_orders(broker_name)]
     except KeyError as exc:
@@ -316,6 +341,7 @@ def list_orders(broker_name: str):
 
 @app.delete("/orders/{broker_name}/{order_id}", tags=["orders"])
 def cancel_order(broker_name: str, order_id: str):
+    _sync_dynamic_brokers_from_credentials()
     try:
         is_cancelled = service.cancel_order(broker_name, order_id)
     except KeyError as exc:
@@ -366,6 +392,7 @@ def strategy_webhook(payload: StrategyWebhookRequest):
             "reason": risk_decision.reason,
         }
 
+    _sync_dynamic_brokers_from_credentials()
     execution = strategy_execution_service.maybe_execute_signal(
         broker_name=payload.broker,
         signal_type=payload.signal_type,
@@ -406,6 +433,7 @@ def strategy_webhook(payload: StrategyWebhookRequest):
 
 @app.get("/positions/{broker_name}", tags=["portfolio"])
 def list_positions(broker_name: str):
+    _sync_dynamic_brokers_from_credentials()
     try:
         return [to_position_response(position) for position in service.list_positions(broker_name)]
     except KeyError as exc:
@@ -414,6 +442,7 @@ def list_positions(broker_name: str):
 
 @app.get("/holdings/{broker_name}", tags=["portfolio"])
 def list_holdings(broker_name: str):
+    _sync_dynamic_brokers_from_credentials()
     try:
         return [to_holding_response(holding) for holding in service.list_holdings(broker_name)]
     except KeyError as exc:
@@ -422,6 +451,7 @@ def list_holdings(broker_name: str):
 
 @app.get("/funds/{broker_name}", tags=["portfolio"])
 def get_funds(broker_name: str):
+    _sync_dynamic_brokers_from_credentials()
     try:
         return to_funds_response(service.get_funds(broker_name))
     except KeyError as exc:
