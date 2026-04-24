@@ -22,6 +22,44 @@
   <div id="statusBanner" class="status-banner status-banner-hidden">Ready</div>
 
   <main class="layout">
+    <section class="card wide onboarding-card">
+      <div class="card-header">
+        <h2>Getting Started with Dhan</h2>
+        <div class="button-row">
+          <button id="tutorialFillDhan">Use Dhan Defaults</button>
+          <button id="tutorialActivateDhan">Save & Activate Dhan</button>
+          <button id="tutorialRefreshAll">Refresh Everything</button>
+        </div>
+      </div>
+      <div class="tutorial-grid">
+        <div class="tutorial-panel">
+          <div class="tutorial-title">What to pull from Dhan</div>
+          <ol class="tutorial-steps">
+            <li>Open DhanHQ Trading APIs.</li>
+            <li>Create your API app in Dhan.</li>
+            <li>Copy your <strong>Client ID</strong>.</li>
+            <li>Generate and copy your <strong>Access Token</strong>.</li>
+            <li>Paste them into <strong>Broker Credentials</strong> below.</li>
+            <li>Click <strong>Save & Activate Dhan</strong>.</li>
+          </ol>
+        </div>
+        <div class="tutorial-panel">
+          <div class="tutorial-title">Where to put it in TradeLens</div>
+          <div class="tutorial-hints">
+            <div><strong>Broker Name</strong>: dhan</div>
+            <div><strong>Client ID</strong>: your Dhan client id</div>
+            <div><strong>API Key</strong>: optional for storage/reference</div>
+            <div><strong>Access Token</strong>: your Dhan access token</div>
+            <div><strong>Broker Setup</strong>: broker name dhan, live or paper as needed</div>
+          </div>
+        </div>
+        <div class="tutorial-panel">
+          <div class="tutorial-title">Automation Status</div>
+          <pre id="tutorialStatus" class="payload-box compact tutorial-status-box">Ready. Click “Use Dhan Defaults” to auto-fill the dashboard.</pre>
+        </div>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-header">
         <h2>System Status</h2>
@@ -380,5 +418,6 @@
   </main>
 
   <script src="./app.js"></script>
+  <script src="./tutorial.js"></script>
 </body>
 </html>
