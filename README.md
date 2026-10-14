@@ -124,3 +124,18 @@ research defaults, not a source of guaranteed income.
 
 See [the complete small-capital guide](docs/small_capital.md) for examples,
 known limitations, testing steps and mandatory production safety work.
+
+
+## Ask TradeLens (guided in-app assistant)
+
+The existing Vercel dashboard includes a floating **Ask TradeLens** chat window.
+Ask `How do I use this app?` for a step-by-step walkthrough; change safe
+local paper settings (capital, SMA windows, stops and dashboard layout), or
+describe a feature and select **Save request** to queue development work.
+
+The assistant is **not** a live order executor or an autonomous coding agent.
+Optional Ollama/OpenAI models provide richer replies when connected to the
+existing Render backend; guided mode requires no AI model.
+
+Full setup, supported commands and security limits:
+[TradeLens Assistant guide](docs/tradelens_assistant.md).
