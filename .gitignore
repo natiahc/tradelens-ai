@@ -1,0 +1,28 @@
+# Python caches, test artifacts, virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Secrets and local broker credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*token*.json
+*credentials*.json
+
+# Local databases, performance reports, research data
+*.db
+*.sqlite
+*.sqlite3
+data/
+research_data/
+reports/
