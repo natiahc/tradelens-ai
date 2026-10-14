@@ -87,19 +87,19 @@
   }
   function action(message) {
     const text = message.trim();
-    if (/\\b(?:hide|remove|collapse)\\b[\\s\\S]{0,55}\\b(?:dhan|onboarding|getting started|setup instructions)\\b/i.test(text)) {
+    if (/\b(?:hide|remove|collapse)\b[\s\S]{0,55}\b(?:dhan|onboarding|getting started|setup instructions)\b/i.test(text)) {
       updateLayout("hideOnboarding", true);
       return "Hidden the Dhan onboarding section in this browser. Say 'show Dhan onboarding' to restore it.";
     }
-    if (/\\b(?:show|restore|unhide)\\b[\\s\\S]{0,55}\\b(?:dhan|onboarding|getting started|setup instructions)\\b/i.test(text)) {
+    if (/\b(?:show|restore|unhide)\b[\s\S]{0,55}\b(?:dhan|onboarding|getting started|setup instructions)\b/i.test(text)) {
       updateLayout("hideOnboarding", false);
       return "Dhan onboarding section restored in the dashboard.";
     }
-    if (/\\b(?:compact|smaller|reduce spacing|less space)\\b/i.test(text) && /\\b(?:layout|view|dashboard|make|use|switch)\\b/i.test(text)) {
+    if (/\b(?:compact|smaller|reduce spacing|less space)\b/i.test(text) && /\b(?:layout|view|dashboard|make|use|switch)\b/i.test(text)) {
       updateLayout("compactView", true);
       return "Compact layout enabled for this browser. Say 'normal layout' to restore spacing.";
     }
-    if (/\\b(?:normal|default|restore)\\s+(?:dashboard\\s+)?(?:layout|view|spacing)\\b/i.test(text)) {
+    if (/\b(?:normal|default|restore)\s+(?:dashboard\s+)?(?:layout|view|spacing)\b/i.test(text)) {
       updateLayout("compactView", false);
       return "Default dashboard spacing restored.";
     }
