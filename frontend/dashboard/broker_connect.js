@@ -70,7 +70,8 @@
 
   async function completeOnReturn() {
     const current = new URL(window.location.href);
-    const grant = current.searchParams.get("tokenId");
+    const grant = window.__tradelensDhanCallbackToken || current.searchParams.get("tokenId");
+    delete window.__tradelensDhanCallbackToken;
     if (!grant) return;
     // Remove the one-time callback token immediately from the browser URL,
     // history, screenshots and navigations. Never send it to Ollama.
@@ -120,6 +121,7 @@
     } finally {busy = false;}
   }
 
+  if ($("tlDhanRedirectUri")) $("tlDhanRedirectUri").textContent = window.location.origin + "/";
   $("tlDhanSetup").addEventListener("click", () => openSetup());
   $("tlDhanOAuthStart").addEventListener("click", start);
   $("tlDhanHoldings").addEventListener("click", () => {fetchCategory("holdings");});
