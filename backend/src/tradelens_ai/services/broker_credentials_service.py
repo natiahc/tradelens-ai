@@ -142,9 +142,33 @@ class BrokerCredentialsService:
         access_token: str | None,
         api_secret: str | None,
     ) -> BrokerCredentialProfile:
-        client_id_hint = _mask_secret(client_id)
-        api_key_hint = _mask_secret(api_key)
         with self._connect() as connection:
+            existing = connection.execute(
+                "SELECT broker_name, client_id_ciphertext, api_key_ciphertext, "
+                "access_token_ciphertext, api_secret_ciphertext "
+                "FROM broker_credentials WHERE credentials_id = 1"
+            ).fetchone()
+            if existing is None:
+                raise RuntimeError("Broker credentials not initialized")
+            same_broker = str(existing["broker_name"]) == broker_name
+            fields = {
+                "client_id": (client_id, "client_id_ciphertext"),
+                "api_key": (api_key, "api_key_ciphertext"),
+                "access_token": (access_token, "access_token_ciphertext"),
+                "api_secret": (api_secret, "api_secret_ciphertext"),
+            }
+            resolved = {
+                name: value if value is not None else (
+                    self._decrypt_value(str(existing[column])) if same_broker else ""
+                )
+                for name, (value, column) in fields.items()
+            }
+            client_id, api_key, access_token, api_secret = (
+                resolved["client_id"], resolved["api_key"],
+                resolved["access_token"], resolved["api_secret"],
+            )
+            client_id_hint = _mask_secret(client_id)
+            api_key_hint = _mask_secret(api_key)
             connection.execute(
                 """
                 UPDATE broker_credentials
