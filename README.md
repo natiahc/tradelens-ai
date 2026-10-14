@@ -105,3 +105,22 @@ uvicorn tradelens_ai.api:app --reload
 ## Current status
 
 The repository now includes architecture docs, a backend package scaffold, a normalized broker layer, a mock broker adapter, real API endpoints, and broker adapter skeletons for Dhan, Zerodha, and Groww.
+
+
+## Small-capital algo research (paper only)
+
+TradeLens now includes a **₹25,000 default simulated-account** trade planner and
+an offline 20/50-day SMA backtester. The paper planner caps estimated risk per
+trade (0.5%), daily loss (1%) and single-position exposure (20%). These are
+research defaults, not a source of guaranteed income.
+
+- `POST /strategy/small-capital/plan`: calculate a hypothetical NSE equity
+  position; **never** sends an order.
+- `python -m tradelens_ai.services.sma_backtest --csv /path/to/prices.csv`:
+  run the historical CSV backtest (requires daily OHLC data).
+- Automated webhook orders are restricted to the `mock` broker.
+- Direct live broker orders are disabled by default, and the app still lacks
+  production-ready authentication.
+
+See [the complete small-capital guide](docs/small_capital.md) for examples,
+known limitations, testing steps and mandatory production safety work.
