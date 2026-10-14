@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 import httpx
 
+from tradelens_ai.services.assistant_knowledge import knowledge_context
+
 
 SECRET_PATTERN = re.compile(
     r"(?i)(?:sk-[A-Za-z0-9_-]{15,}|(?:api[_ -]?key|access[_ -]?token|"
@@ -121,7 +123,7 @@ def _ollama_reply(messages: list[dict[str, str]]) -> str:
             json={
                 "model": model,
                 "stream": False,
-                "messages": [{"role": "system", "content": ASSISTANT_CONTEXT}] + messages,
+                "messages": [{"role": "system", "content": ASSISTANT_CONTEXT + "\n\n" + knowledge_context(messages[-1]["content"])}] + messages,
                 "options": {"num_predict": 450, "temperature": 0.3},
             },
         )
@@ -140,7 +142,7 @@ def _openai_reply(messages: list[dict[str, str]]) -> str:
             headers={"Authorization": f"Bearer {key}"},
             json={
                 "model": model,
-                "instructions": ASSISTANT_CONTEXT,
+                "instructions": ASSISTANT_CONTEXT + "\n\n" + knowledge_context(messages[-1]["content"]),
                 "input": messages,
                 "max_output_tokens": 450,
                 "store": False,
