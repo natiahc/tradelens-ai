@@ -58,10 +58,12 @@ class DhanBrokerAdapter(BrokerAdapter):
     def place_order(self, request: OrderRequest) -> Order:
         payload = self._build_place_order_payload(request)
         response = self.client.place_order(payload)
-        if isinstance(response, dict) and "data" in response and isinstance(response["data"], dict):
-            return self._map_order(response["data"])
         if isinstance(response, dict):
-            return self._map_order(response)
+            details = response.get("data", response)
+            if isinstance(details, dict):
+                # A successful placement response can contain only an order ID.
+                # Retain fields from the submitted request for normalization.
+                return self._map_order({**payload, **details})
         raise ValueError("Unexpected Dhan place_order response format")
 
     def get_order(self, order_id: str) -> Order:
