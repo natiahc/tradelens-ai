@@ -196,6 +196,9 @@ def _diagnose_application() -> dict:
         "capabilities": [
             {"name": "Health", "method": "GET", "path": "/health", "admin": False},
             {"name": "Change assistant", "method": "POST", "path": "/assistant/chat", "admin": True},
+            {"name": "Dhan OAuth", "method": "POST", "path": "/broker/dhan/oauth/start", "admin": True},
+            {"name": "Dhan OAuth callback", "method": "POST", "path": "/broker/dhan/oauth/complete", "admin": True},
+            {"name": "Dhan read-only account data", "method": "GET", "path": "/broker/dhan/overview/{category}", "admin": True},
             {"name": "Saved change requests", "method": "GET/POST", "path": "/assistant/requests", "admin": True},
             {"name": "Diagnostics", "method": "GET", "path": "/diagnostics/status", "admin": False},
             {"name": "Paper position plan", "method": "POST", "path": "/strategy/small-capital/plan", "admin": False},
@@ -208,6 +211,8 @@ def _diagnose_application() -> dict:
         ],
         "limitations": [
             "No automatic live NSE market-data or broker execution",
+            "Dhan OAuth requires user-created Dhan API credentials and official login/2FA",
+            "Web search requires a server-side BRAVE_SEARCH_API_KEY",
             "Historical simulation cannot demonstrate assured profits",
             "Production access control requires TRADELENS_ADMIN_TOKEN on Render",
             "Live API trading is disabled by default",
