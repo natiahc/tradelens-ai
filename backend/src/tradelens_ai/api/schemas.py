@@ -154,3 +154,15 @@ class AuditEventResponse(BaseModel):
     entity_id: Optional[str] = None
     payload_json: str
     created_at: str
+
+
+class SmallCapitalPlanRequest(BaseModel):
+    """Read-only trade sizing; this endpoint cannot place orders."""
+
+    symbol: str
+    entry_price: float = Field(..., gt=0)
+    stop_price: float = Field(..., gt=0)
+    available_cash_rupees: float = Field(..., ge=0)
+    daily_realized_pnl_rupees: float = 0.0
+    existing_symbol_exposure_rupees: float = Field(0.0, ge=0)
+    capital_rupees: float = Field(25_000.0, gt=0)
