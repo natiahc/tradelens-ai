@@ -5,7 +5,7 @@ import secrets
 import sqlite3
 from datetime import date, datetime, timezone
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from tradelens_ai.api.audit_mappers import to_audit_event_response
@@ -204,6 +204,38 @@ def _diagnose_application() -> dict:
     }
 
 
+
+
+@app.middleware("http")
+async def record_backend_failures(request: Request, call_next):
+    """Record only 5xx failures, never URLs, payloads, API tokens or tracebacks."""
+    try:
+        response = await call_next(request)
+    except Exception:
+        # Exception class only; a traceback or URL may contain credentials.
+        try:
+            audit_service.log_event(
+                event_type="backend_server_error",
+                broker_name=None, entity_id=None,
+                payload={"group": request.scope.get("path", "/").split("/")[1][:24],
+                         "method": request.method, "status": 500},
+            )
+        except Exception:
+            pass
+        raise
+    if response.status_code >= 500:
+        try:
+            audit_service.log_event(
+                event_type="backend_server_error",
+                broker_name=None, entity_id=None,
+                payload={"group": request.scope.get("path", "/").split("/")[1][:24],
+                         "method": request.method, "status": response.status_code},
+            )
+        except Exception:
+            pass
+    return response
+
+
 @app.get("/diagnostics/status", tags=["diagnostics"])
 def diagnostics_status():
     return _diagnose_application()
@@ -233,9 +265,9 @@ def diagnostics_logs(limit: int = 100):
             "id": event.event_id,
             "event": event.event_type,
             "timestamp_utc": event.created_at,
-            "summary": event.payload_json[:1024] if event.event_type == "diagnostic_run" else "{}",
+            "summary": event.payload_json[:1024] if event.event_type in ("diagnostic_run", "backend_server_error") else "{}",
         }
-        for event in rows if event.event_type == "diagnostic_run"
+        for event in rows if event.event_type == "diagnostic_run" or event.event_type == "backend_server_error"
     ]
 
 
