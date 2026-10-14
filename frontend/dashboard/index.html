@@ -22,6 +22,62 @@
   <div id="statusBanner" class="status-banner status-banner-hidden">Ready</div>
 
   <main class="layout">
+
+    <section class="card wide small-capital-card" id="smallCapitalResearch">
+      <div class="card-header">
+        <div>
+          <h2>Small Capital Lab <span class="research-badge">PAPER ONLY</span></h2>
+          <p class="research-note">Plan positions and research a historical strategy. No broker order is submitted here, and daily profit is never guaranteed.</p>
+        </div>
+      </div>
+
+      <h3 class="research-heading">1. Risk-based position planner</h3>
+      <div class="form-grid">
+        <label>Symbol <input id="scSymbol" type="text" value="INFY" maxlength="25" autocomplete="off"></label>
+        <label>Simulated capital (₹) <input id="scCapital" type="number" min="1000" step="1000" value="25000"></label>
+        <label>Hypothetical entry (₹) <input id="scEntry" type="number" min="0.01" step="0.05" value="100"></label>
+        <label>Hypothetical stop (₹) <input id="scStop" type="number" min="0.01" step="0.05" value="98"></label>
+        <label>Available simulated cash (₹) <input id="scCash" type="number" min="0" step="100" value="25000"></label>
+        <label>Today's realized simulated P&amp;L (₹) <input id="scDailyPnl" type="number" step="10" value="0"></label>
+      </div>
+      <div class="button-row research-actions">
+        <button type="button" id="scPlanButton">Calculate Paper Position</button>
+      </div>
+      <div class="research-stats" aria-live="polite">
+        <div><span>Position size</span><strong id="scQuantity">—</strong></div>
+        <div><span>Cash required</span><strong id="scCashRequired">—</strong></div>
+        <div><span>Estimated stop loss</span><strong id="scEstimatedLoss">—</strong></div>
+        <div><span>Daily risk remaining</span><strong id="scRemainingRisk">—</strong></div>
+      </div>
+      <p id="scPlanStatus" role="status" class="research-status">Illustrative prices are not live NSE quotes.</p>
+
+      <hr class="research-divider">
+      <h3 class="research-heading">2. Historical strategy backtest</h3>
+      <p class="research-note">Upload your own <code>Date,Open,High,Low,Close</code> daily CSV, or load a clearly labelled synthetic demo dataset. Historical data is not downloaded automatically.</p>
+      <div class="form-grid">
+        <label>Historical OHLC file <input id="scCsvFile" type="file" accept=".csv,text/csv"></label>
+        <label>Fast moving average (sessions) <input id="scFast" type="number" min="2" max="250" value="20"></label>
+        <label>Slow moving average (sessions) <input id="scSlow" type="number" min="3" max="500" value="50"></label>
+        <label>Estimated protective stop (%) <input id="scStopPct" type="number" min="0.1" max="99" step="0.1" value="2"></label>
+      </div>
+      <div class="button-row research-actions">
+        <button type="button" id="scDemoData">Load Synthetic Demo Data</button>
+        <button type="button" id="scBacktestButton">Run Paper Backtest</button>
+      </div>
+      <p id="scDataStatus" class="research-status">No data loaded.</p>
+      <div class="research-stats" aria-live="polite">
+        <div><span>Historical return</span><strong id="scReturn">—</strong></div>
+        <div><span>Max drawdown</span><strong id="scDrawdown">—</strong></div>
+        <div><span>Closed trades</span><strong id="scTrades">—</strong></div>
+        <div><span>Final simulated equity</span><strong id="scFinalEquity">—</strong></div>
+      </div>
+      <div class="research-curve-box" aria-label="Historical equity curve visualisation">
+        <svg id="scCurve" viewBox="0 0 640 160" preserveAspectRatio="none" role="img" aria-label="Equity curve not yet available"></svg>
+      </div>
+      <pre id="scBacktestStatus" class="payload-box compact" role="status">No backtest has run yet.</pre>
+      <p class="research-disclaimer">Research estimates only. Indicative transaction costs and daily OHLC stop fills are simplified. Broker fees, taxes, slippage, gaps and corporate actions can change real outcomes. No automated live orders are enabled.</p>
+    </section>
+
     <section class="card wide onboarding-card">
       <div class="card-header">
         <h2>Getting Started with Dhan</h2>
@@ -419,5 +475,6 @@
 
   <script src="./app.js"></script>
   <script src="./tutorial.js"></script>
+  <script src="./small_capital.js"></script>
 </body>
 </html>
