@@ -723,3 +723,20 @@ body:not(.tl-advanced-mode) #smallCapitalResearch label:has(#scStopPct) {
   .tl-home-status { white-space: normal; }
   .tl-mode-switch button { flex: 1; }
 }
+
+/* Optional read-only broker connection on simple home screen. */
+.tl-broker-strip {
+  margin-top: 18px; padding: 18px; border: 1px solid #365b60;
+  border-radius: 12px; background: rgba(6, 65, 61, 0.28);
+  display: grid; gap: 12px;
+}
+.tl-broker-strip h3 { margin: 0 0 9px; }
+.tl-broker-strip p { line-height: 1.6; color: #dae7e5; margin: 6px 0; font-size: .88rem; }
+.tl-broker-strip code { overflow-wrap: anywhere; color: #9cf4df; }
+.tl-broker-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.tl-broker-actions button { background: #176c6a; border: 1px solid #308b83; }
+#tlDhanOverview { max-height: 270px; overflow: auto; font-size: .76rem; }
+.tl-chat-bubble a {
+  display: block; margin-top: 9px; color: #92dfff; overflow-wrap: anywhere;
+  text-decoration: underline; font-size: .79rem;
+}
