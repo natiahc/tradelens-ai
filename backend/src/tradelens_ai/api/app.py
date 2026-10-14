@@ -43,6 +43,7 @@ from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.assistant_service import ChangeRequestStore, advisory_reply
+from tradelens_ai.services.assistant_search import requests_search, search_web
 from tradelens_ai.services.broker_credentials_service import BrokerCredentialsService
 from tradelens_ai.services.broker_profile_service import BrokerProfile, BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
@@ -286,9 +287,17 @@ def assistant_chat(payload: AssistantChatRequest):
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    search = search_web(payload.message) if requests_search(payload.message) else None
+    if search is not None:
+        # Searches are attributable source links, never covert AI "knowledge".
+        if search["results"]:
+            reply += "\\n\\nWeb results are listed separately below."
+        else:
+            reply += "\\n\\n" + search["message"]
     return {
         "reply": reply,
         "mode": mode,
+        "search": search,
         "can_modify_repository": False,
         "can_place_orders": False,
     }
