@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+import secrets
+import sqlite3
+from datetime import date, datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from tradelens_ai.api.audit_mappers import to_audit_event_response
@@ -48,6 +50,19 @@ from tradelens_ai.services.sma_backtest import DailyBar, backtest_sma
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.strategy_summary_service import StrategySummaryService
 from tradelens_ai.services.trading_service import TradingService
+
+
+
+def require_admin(x_tradelens_admin_token: str | None = Header(default=None)) -> None:
+    """Protect private operational and trading endpoints; no public fallback."""
+    expected = os.getenv("TRADELENS_ADMIN_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin API locked. Configure TRADELENS_ADMIN_TOKEN in Render.",
+        )
+    if not x_tradelens_admin_token or not secrets.compare_digest(expected, x_tradelens_admin_token):
+        raise HTTPException(status_code=401, detail="Valid admin access token required")
 
 
 settings = load_settings()
@@ -129,18 +144,113 @@ def _sync_dynamic_brokers_from_credentials() -> None:
 _sync_dynamic_brokers_from_credentials()
 
 
+
+def _diagnose_application() -> dict:
+    """Safe, curated capability report without secrets or broker requests."""
+    findings: list[dict] = []
+    try:
+        with sqlite3.connect(db_path, timeout=3) as conn:
+            conn.execute("SELECT 1").fetchone()
+        findings.append({
+            "id": "sqlite", "status": "pass",
+            "message": "Persistent database connection succeeded.",
+        })
+    except (sqlite3.Error, OSError):
+        findings.append({
+            "id": "sqlite", "status": "fail",
+            "message": "Database unavailable. Check Render disk mount /var/data and permissions.",
+        })
+    configured = bool(os.getenv("TRADELENS_ADMIN_TOKEN", "").strip())
+    findings.append({
+        "id": "admin_access",
+        "status": "pass" if configured else "blocked",
+        "message": (
+            "Admin access is configured. Enter your token in the dashboard."
+            if configured else
+            "Set TRADELENS_ADMIN_TOKEN on the existing Render service; "
+            "private operational APIs stay locked until configured."
+        ),
+    })
+    findings.append({
+        "id": "live_orders", "status": "pass",
+        "message": "Live broker automation is not supported by the paper-only audit workflow.",
+    })
+    findings.append({
+        "id": "historical_data", "status": "manual",
+        "message": "Upload OHLC CSV in Small Capital Lab. No automatic NSE live-data feed is configured.",
+    })
+    return {
+        "application": "TradeLens AI",
+        "mode": "paper_research",
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "findings": findings,
+        "capabilities": [
+            {"name": "Health", "method": "GET", "path": "/health", "admin": False},
+            {"name": "Diagnostics", "method": "GET", "path": "/diagnostics/status", "admin": False},
+            {"name": "Paper position plan", "method": "POST", "path": "/strategy/small-capital/plan", "admin": False},
+            {"name": "OHLC SMA backtest", "method": "POST", "path": "/strategy/small-capital/backtest", "admin": False},
+            {"name": "Run and persist audit", "method": "POST", "path": "/diagnostics/run", "admin": True},
+            {"name": "Read saved diagnostics", "method": "GET", "path": "/diagnostics/logs", "admin": True},
+            {"name": "Broker management", "method": "GET/PUT", "path": "/broker-profile", "admin": True},
+            {"name": "Broker secrets (disabled until admin access)", "method": "GET/PUT", "path": "/broker-credentials", "admin": True},
+            {"name": "Mock order", "method": "POST", "path": "/orders", "admin": True},
+        ],
+        "limitations": [
+            "No automatic live NSE market-data or broker execution",
+            "Historical simulation cannot demonstrate assured profits",
+            "Production access control requires TRADELENS_ADMIN_TOKEN on Render",
+            "Live API trading is disabled by default",
+        ],
+    }
+
+
+@app.get("/diagnostics/status", tags=["diagnostics"])
+def diagnostics_status():
+    return _diagnose_application()
+
+
+@app.post("/diagnostics/run", tags=["diagnostics"], dependencies=[Depends(require_admin)])
+def diagnostics_run():
+    report = _diagnose_application()
+    audit_service.log_event(
+        event_type="diagnostic_run",
+        broker_name=None,
+        entity_id=None,
+        payload={
+            "checks": [{"id": item["id"], "status": item["status"]} for item in report["findings"]],
+            "timestamp_utc": report["timestamp_utc"],
+        },
+    )
+    return report
+
+
+@app.get("/diagnostics/logs", tags=["diagnostics"], dependencies=[Depends(require_admin)])
+def diagnostics_logs(limit: int = 100):
+    """Bounded saved diagnostic events; no request bodies or secrets."""
+    rows = audit_service.list_events(limit=max(1, min(limit, 200)))
+    return [
+        {
+            "id": event.event_id,
+            "event": event.event_type,
+            "timestamp_utc": event.created_at,
+            "summary": event.payload_json[:1024] if event.event_type == "diagnostic_run" else "{}",
+        }
+        for event in rows if event.event_type == "diagnostic_run"
+    ]
+
+
 @app.get("/health", response_model=HealthResponse, tags=["system"])
 def health() -> HealthResponse:
     return HealthResponse()
 
 
-@app.get("/brokers", response_model=BrokerListResponse, tags=["brokers"])
+@app.get("/brokers", response_model=BrokerListResponse, tags=["brokers"], dependencies=[Depends(require_admin)])
 def list_brokers() -> BrokerListResponse:
     _sync_dynamic_brokers_from_credentials()
     return BrokerListResponse(brokers=service.list_brokers())
 
 
-@app.get("/broker-profile", response_model=BrokerProfileResponse, tags=["brokers"])
+@app.get("/broker-profile", response_model=BrokerProfileResponse, tags=["brokers"], dependencies=[Depends(require_admin)])
 def get_broker_profile() -> BrokerProfileResponse:
     profile = broker_profile_service.get_profile()
     return BrokerProfileResponse(
@@ -153,7 +263,7 @@ def get_broker_profile() -> BrokerProfileResponse:
     )
 
 
-@app.put("/broker-profile", response_model=BrokerProfileResponse, tags=["brokers"])
+@app.put("/broker-profile", response_model=BrokerProfileResponse, tags=["brokers"], dependencies=[Depends(require_admin)])
 def update_broker_profile(payload: BrokerProfileUpdateRequest) -> BrokerProfileResponse:
     updated = broker_profile_service.update_profile(
         BrokerProfile(
@@ -188,7 +298,7 @@ def update_broker_profile(payload: BrokerProfileUpdateRequest) -> BrokerProfileR
     )
 
 
-@app.get("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"])
+@app.get("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"], dependencies=[Depends(require_admin)])
 def get_broker_credentials() -> BrokerCredentialProfileResponse:
     try:
         profile = broker_credentials_service.get_profile()
@@ -204,7 +314,7 @@ def get_broker_credentials() -> BrokerCredentialProfileResponse:
     )
 
 
-@app.put("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"])
+@app.put("/broker-credentials", response_model=BrokerCredentialProfileResponse, tags=["brokers"], dependencies=[Depends(require_admin)])
 def update_broker_credentials(payload: BrokerCredentialProfileUpdateRequest) -> BrokerCredentialProfileResponse:
     try:
         updated = broker_credentials_service.update_profile(
@@ -240,7 +350,7 @@ def update_broker_credentials(payload: BrokerCredentialProfileUpdateRequest) -> 
     )
 
 
-@app.get("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"])
+@app.get("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"], dependencies=[Depends(require_admin)])
 def get_risk_settings() -> RiskSettingsResponse:
     current = risk_settings_service.get_settings()
     return RiskSettingsResponse(
@@ -251,7 +361,7 @@ def get_risk_settings() -> RiskSettingsResponse:
     )
 
 
-@app.put("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"])
+@app.put("/risk/settings", response_model=RiskSettingsResponse, tags=["risk"], dependencies=[Depends(require_admin)])
 def update_risk_settings(payload: RiskSettingsUpdateRequest) -> RiskSettingsResponse:
     updated = risk_settings_service.update_settings(
         RiskSettings(
@@ -280,7 +390,7 @@ def update_risk_settings(payload: RiskSettingsUpdateRequest) -> RiskSettingsResp
     )
 
 
-@app.get("/strategy/summary", response_model=StrategySummaryResponse, tags=["strategy"])
+@app.get("/strategy/summary", response_model=StrategySummaryResponse, tags=["strategy"], dependencies=[Depends(require_admin)])
 def get_strategy_summary() -> StrategySummaryResponse:
     summary = strategy_summary_service.get_summary()
     return StrategySummaryResponse(
@@ -335,7 +445,7 @@ def small_capital_backtest(payload: SmallCapitalBacktestRequest):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@app.post("/orders", tags=["orders"])
+@app.post("/orders", tags=["orders"], dependencies=[Depends(require_admin)])
 def place_order(payload: PlaceOrderRequest):
     # The API has no production authentication yet. Never send real orders by
     # default, even when broker credentials have been configured.
@@ -383,12 +493,12 @@ def place_order(payload: PlaceOrderRequest):
     return to_order_response(order)
 
 
-@app.get("/orders/history", response_model=list[PersistedOrderResponse], tags=["orders"])
+@app.get("/orders/history", response_model=list[PersistedOrderResponse], tags=["orders"], dependencies=[Depends(require_admin)])
 def list_persisted_orders(limit: int = 100):
     return [to_persisted_order_response(order) for order in order_history_service.list_orders(limit=limit)]
 
 
-@app.get("/orders/{broker_name}", tags=["orders"])
+@app.get("/orders/{broker_name}", tags=["orders"], dependencies=[Depends(require_admin)])
 def list_orders(broker_name: str):
     _sync_dynamic_brokers_from_credentials()
     try:
@@ -397,7 +507,7 @@ def list_orders(broker_name: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.delete("/orders/{broker_name}/{order_id}", tags=["orders"])
+@app.delete("/orders/{broker_name}/{order_id}", tags=["orders"], dependencies=[Depends(require_admin)])
 def cancel_order(broker_name: str, order_id: str):
     _sync_dynamic_brokers_from_credentials()
     try:
@@ -416,7 +526,7 @@ def cancel_order(broker_name: str, order_id: str):
     return {"status": "cancelled", "order_id": order_id, "broker": broker_name}
 
 
-@app.post("/webhooks/strategy", tags=["strategy"])
+@app.post("/webhooks/strategy", tags=["strategy"], dependencies=[Depends(require_admin)])
 def strategy_webhook(payload: StrategyWebhookRequest):
     event_id = audit_service.log_event(
         event_type="strategy_signal_received",
@@ -489,7 +599,7 @@ def strategy_webhook(payload: StrategyWebhookRequest):
     return response
 
 
-@app.get("/positions/{broker_name}", tags=["portfolio"])
+@app.get("/positions/{broker_name}", tags=["portfolio"], dependencies=[Depends(require_admin)])
 def list_positions(broker_name: str):
     _sync_dynamic_brokers_from_credentials()
     try:
@@ -498,7 +608,7 @@ def list_positions(broker_name: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.get("/holdings/{broker_name}", tags=["portfolio"])
+@app.get("/holdings/{broker_name}", tags=["portfolio"], dependencies=[Depends(require_admin)])
 def list_holdings(broker_name: str):
     _sync_dynamic_brokers_from_credentials()
     try:
@@ -507,7 +617,7 @@ def list_holdings(broker_name: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.get("/funds/{broker_name}", tags=["portfolio"])
+@app.get("/funds/{broker_name}", tags=["portfolio"], dependencies=[Depends(require_admin)])
 def get_funds(broker_name: str):
     _sync_dynamic_brokers_from_credentials()
     try:
@@ -516,6 +626,6 @@ def get_funds(broker_name: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.get("/audit/events", response_model=list[AuditEventResponse], tags=["audit"])
+@app.get("/audit/events", response_model=list[AuditEventResponse], tags=["audit"], dependencies=[Depends(require_admin)])
 def list_audit_events(limit: int = 50):
     return [to_audit_event_response(event) for event in audit_service.list_events(limit=limit)]
