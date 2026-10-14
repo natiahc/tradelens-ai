@@ -43,7 +43,7 @@ from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, Produ
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
-from tradelens_ai.services.assistant_service import ChangeRequestStore, advisory_reply
+from tradelens_ai.services.assistant_service import ChangeRequestStore, advisory_reply, contains_secret
 from tradelens_ai.services.assistant_search import requests_search, search_web
 from tradelens_ai.services.broker_credentials_service import BrokerCredentialsService
 from tradelens_ai.services.dhan_connection_service import DhanConnectionService, DhanConnectionError
@@ -290,6 +290,10 @@ def diagnostics_logs(limit: int = 100):
 @app.post("/assistant/chat", tags=["assistant"], dependencies=[Depends(require_admin)])
 def assistant_chat(payload: AssistantChatRequest):
     """Authenticated advice only: no code, deployment, or broker side effects."""
+    if contains_secret(payload.message) or any(
+        contains_secret(item.content) for item in payload.history
+    ):
+        raise HTTPException(status_code=422, detail="Remove secrets and API tokens before chatting or searching.")
     search = search_web(payload.message) if requests_search(payload.message) else None
     try:
         reply, mode = advisory_reply(
