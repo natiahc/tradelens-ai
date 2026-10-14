@@ -18,6 +18,7 @@ from tradelens_ai.api.mappers import (
 from tradelens_ai.api.order_history_mappers import to_persisted_order_response
 from tradelens_ai.api.schemas import (
     AssistantChatRequest,
+    DhanCompleteRequest,
     AssistantChangeRequest,
     AuditEventResponse,
     BrokerCredentialProfileResponse,
@@ -45,6 +46,7 @@ from tradelens_ai.services.audit_service import AuditService
 from tradelens_ai.services.assistant_service import ChangeRequestStore, advisory_reply
 from tradelens_ai.services.assistant_search import requests_search, search_web
 from tradelens_ai.services.broker_credentials_service import BrokerCredentialsService
+from tradelens_ai.services.dhan_connection_service import DhanConnectionService, DhanConnectionError
 from tradelens_ai.services.broker_profile_service import BrokerProfile, BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
@@ -130,6 +132,8 @@ risk_settings_service = RiskSettingsService(db_path)
 risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
 assistant_request_store = ChangeRequestStore(db_path)
+dhan_connection_service = (DhanConnectionService(db_path, broker_credentials_service)
+                           if isinstance(broker_credentials_service, BrokerCredentialsService) else None)
 
 
 def _sync_dynamic_brokers_from_credentials() -> None:
@@ -322,6 +326,43 @@ def create_assistant_change_request(payload: AssistantChangeRequest):
 @app.get("/assistant/requests", tags=["assistant"], dependencies=[Depends(require_admin)])
 def list_assistant_change_requests(limit: int = 30):
     return assistant_request_store.list_requests(limit)
+
+
+@app.post("/broker/dhan/oauth/start", tags=["brokers"], dependencies=[Depends(require_admin)])
+def dhan_oauth_start():
+    if dhan_connection_service is None:
+        raise HTTPException(status_code=503, detail="Dhan credential storage is not configured.")
+    try:
+        return dhan_connection_service.start()
+    except DhanConnectionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/broker/dhan/oauth/complete", tags=["brokers"], dependencies=[Depends(require_admin)])
+def dhan_oauth_complete(payload: DhanCompleteRequest):
+    if dhan_connection_service is None:
+        raise HTTPException(status_code=503, detail="Dhan credential storage is not configured.")
+    try:
+        result = dhan_connection_service.complete(payload.flow_state, payload.token_id)
+    except DhanConnectionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _sync_dynamic_brokers_from_credentials()
+    audit_service.log_event(
+        event_type="dhan_oauth_connected",
+        broker_name="dhan", entity_id=None,
+        payload={"connected": True, "read_only": True},
+    )
+    return result
+
+
+@app.get("/broker/dhan/overview/{category}", tags=["brokers"], dependencies=[Depends(require_admin)])
+def dhan_read_only_overview(category: str):
+    if dhan_connection_service is None:
+        raise HTTPException(status_code=503, detail="Dhan credential storage is not configured.")
+    try:
+        return dhan_connection_service.overview(category)
+    except DhanConnectionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
