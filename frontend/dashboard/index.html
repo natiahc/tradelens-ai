@@ -4,6 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TradeLens AI Dashboard</title>
+  <!-- Capture and erase Dhan one-time tokenId BEFORE requesting any site assets. -->
+  <script>
+    (function () {
+      const url = new URL(window.location.href);
+      const grant = url.searchParams.get("tokenId");
+      if (!grant) return;
+      window.__tradelensDhanCallbackToken = grant;
+      url.searchParams.delete("tokenId");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    })();
+  </script>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -62,7 +73,7 @@
       <div class="tl-broker-strip" id="tlBrokerConnect">
         <div>
           <h3>Connect Dhan <span class="research-badge">OPTIONAL</span></h3>
-          <p>See your account data after a secure Dhan login. Trading stays off.</p>
+          <p>See your account data after a secure Dhan login. Trading stays off. In Dhan Web, create an API key and set its redirect URL to <code id="tlDhanRedirectUri">this site</code>.</p>
           <p id="tlDhanStatus" role="status">Not connected. Add API credentials to begin.</p>
         </div>
         <div class="tl-broker-actions">
