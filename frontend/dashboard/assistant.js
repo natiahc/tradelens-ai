@@ -244,6 +244,27 @@
         bubble("assistant", offlineReply(value));
         announce("Guided mode. Unlock Tools with your admin token for server-side AI.");
       }
+      // Explicit imperative feature requests are recorded automatically,
+      // never executed as repository/deployment changes.
+      if (!localAction && /^(?:please\s+)?(?:add|build|create|implement|fix|redesign|integrate|support|improve)\b/i.test(value)) {
+        try {
+          if (adminToken()) {
+            const saved = await post("/assistant/requests", { description: value });
+            bubble("assistant", "Development request #" + saved.request_id +
+              " saved on Render. It still requires code review and deployment.");
+          } else {
+            saveLocalRequest(value);
+            bubble("assistant", "Suggestion saved as a local draft. Unlock Tools to save requests on Render, or export it for development.");
+          }
+        } catch (_) {
+          try {
+            saveLocalRequest(value);
+            bubble("assistant", "Backend request queue unavailable; saved a local draft instead.");
+          } catch (_) {
+            announce("Couldn't save the suggestion. Copy it before leaving the page.");
+          }
+        }
+      }
     } finally { working = false; $("tlChatSend").disabled = false; }
   }
   function saveLocalRequest(text) {
