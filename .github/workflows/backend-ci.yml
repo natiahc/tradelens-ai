@@ -28,3 +28,25 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: pytest -q
+
+      - name: Validate dashboard JavaScript
+        run: |
+          for script in frontend/dashboard/*.js; do
+            node --check "$script"
+          done
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          html = Path("frontend/dashboard/index.html").read_text()
+          required = [
+              "tlChatLauncher", "tlChatPanel", "tlChatMessages",
+              "tlChatForm", "tlChatInput", "tlChatSave",
+              "scCapital", "scFast", "scSlow", "diagRun",
+          ]
+          missing = [name for name in required if f'id="{name}"' not in html]
+          assert not missing, f"Missing assistant UI controls: {missing}"
+          for source in ("app.js", "small_capital.js", "diagnostics.js", "assistant.js"):
+              assert f'src="./{source}"' in html
+              assert Path("frontend/dashboard", source).is_file()
+          PY
