@@ -187,3 +187,17 @@ class SmallCapitalBacktestRequest(BaseModel):
     slow_days: int = Field(50, ge=3, le=500)
     stop_pct: float = Field(0.02, gt=0, lt=1, allow_inf_nan=False)
     bars: list[DailyBarInput] = Field(..., min_length=4, max_length=2000)
+
+
+class AssistantChatMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str = Field(..., min_length=1, max_length=1500)
+
+
+class AssistantChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: list[AssistantChatMessage] = Field(default_factory=list, max_length=8)
+
+
+class AssistantChangeRequest(BaseModel):
+    description: str = Field(..., min_length=5, max_length=2000)
