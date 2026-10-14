@@ -300,9 +300,9 @@ def assistant_chat(payload: AssistantChatRequest):
     if search is not None:
         # Searches are attributable source links, never covert AI "knowledge".
         if search["results"]:
-            reply += "\\n\\nWeb results are listed separately below."
+            reply += "\n\nWeb results are listed separately below."
         else:
-            reply += "\\n\\n" + search["message"]
+            reply += "\n\n" + search["message"]
     return {
         "reply": reply,
         "mode": mode,
