@@ -438,17 +438,10 @@ async function saveBrokerCredentials() {
     renderBrokerCredentials(result);
     await refreshAuditEvents();
   } catch (error) {
-    const fallback = {
-      broker_name: payload.broker_name,
-      client_id_hint: payload.client_id ? "saved-locally" : "",
-      api_key_hint: payload.api_key ? "saved-locally" : "",
-      has_access_token: Boolean(payload.access_token),
-      has_api_secret: Boolean(payload.api_secret),
-      updated_at: new Date().toISOString(),
-    };
-    localStorage.setItem("tradelensBrokerCredentials", JSON.stringify(fallback));
-    renderBrokerCredentials(fallback);
-    el.brokerCredentialsResponse.textContent = `Saved local placeholder because backend credential API failed\n${String(error.message || error)}`;
+    el.brokerCredentialsResponse.textContent =
+      "Credential save FAILED. No new credentials were stored on Render. " +
+      "Check the admin token and backend connection; never paste secrets into chat.";
+    throw new Error("Broker credential save failed on the backend. Unlock Tools and retry.");
   }
 }
 
