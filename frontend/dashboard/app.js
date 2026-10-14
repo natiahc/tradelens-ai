@@ -458,12 +458,15 @@ async function resetBrokerCredentials() {
 }
 
 async function apiFetch(path, options = {}) {
+  const { headers: extraHeaders, ...otherOptions } = options;
+  const adminToken = sessionStorage.getItem("tradelensAdminToken") || "";
   const response = await fetch(`${state.apiBaseUrl}${path}`, {
+    ...otherOptions,
     headers: {
       "Content-Type": "application/json",
-      ...(options.headers || {}),
+      ...(adminToken ? { "X-TradeLens-Admin-Token": adminToken } : {}),
+      ...(extraHeaders || {}),
     },
-    ...options,
   });
 
   const text = await response.text();
@@ -508,16 +511,14 @@ function renderOrderHistory(data) {
   el.orderHistoryBody.innerHTML = "";
   for (const row of data || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row.record_id}</td>
-      <td>${row.broker_name}</td>
-      <td>${row.order_id}</td>
-      <td>${row.symbol}</td>
-      <td>${row.side}</td>
-      <td>${row.quantity}</td>
-      <td>${row.status}</td>
-      <td>${row.created_at}</td>
-    `;
+    for (const value of [
+      row.record_id, row.broker_name, row.order_id, row.symbol,
+      row.side, row.quantity, row.status, row.created_at,
+    ]) {
+      const cell = document.createElement("td");
+      cell.textContent = String(value ?? "");
+      tr.appendChild(cell);
+    }
     el.orderHistoryBody.appendChild(tr);
   }
 }
@@ -526,13 +527,14 @@ function renderAuditEvents(data) {
   el.auditBody.innerHTML = "";
   for (const row of data || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row.event_id}</td>
-      <td>${row.event_type}</td>
-      <td>${row.broker_name || "-"}</td>
-      <td>${row.entity_id || "-"}</td>
-      <td>${row.created_at}</td>
-    `;
+    for (const value of [
+      row.event_id, row.event_type, row.broker_name || "-",
+      row.entity_id || "-", row.created_at,
+    ]) {
+      const cell = document.createElement("td");
+      cell.textContent = String(value ?? "");
+      tr.appendChild(cell);
+    }
     el.auditBody.appendChild(tr);
   }
   el.auditPayload.textContent = JSON.stringify(data, null, 2);
