@@ -58,6 +58,20 @@
           <button type="button" id="tlOpenAssistant">Ask TradeLens →</button>
         </article>
       </div>
+      
+      <div class="tl-broker-strip" id="tlBrokerConnect">
+        <div>
+          <h3>Connect Dhan <span class="research-badge">OPTIONAL</span></h3>
+          <p>See your account data after a secure Dhan login. Trading stays off.</p>
+          <p id="tlDhanStatus" role="status">Not connected. Add API credentials to begin.</p>
+        </div>
+        <div class="tl-broker-actions">
+          <button type="button" id="tlDhanSetup">Add API credentials</button>
+          <button type="button" id="tlDhanOAuthStart">Connect with Dhan</button>
+          <button type="button" id="tlDhanHoldings">Fetch my holdings</button>
+        </div>
+        <pre id="tlDhanOverview" class="payload-box compact" hidden></pre>
+      </div>
       <p class="tl-plain-caution"><strong>Research only:</strong> Trading can lose money. Backtests and examples do not guarantee daily profits.</p>
     </section>
 
@@ -583,5 +597,6 @@
   <script src="./diagnostics.js"></script>
   <script src="./assistant.js"></script>
   <script src="./simple_ui.js"></script>
+  <script src="./broker_connect.js"></script>
 </body>
 </html>
