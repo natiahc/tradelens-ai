@@ -1,10 +1,12 @@
+import importlib
 import os
 import tempfile
 
 from fastapi.testclient import TestClient
 
 from tradelens_ai.api import app as fastapi_app
-from tradelens_ai.api import app as api_module
+
+api_module = importlib.import_module("tradelens_ai.api.app")
 from tradelens_ai.brokers.registry import build_default_registry
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
