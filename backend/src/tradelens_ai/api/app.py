@@ -17,6 +17,8 @@ from tradelens_ai.api.mappers import (
 )
 from tradelens_ai.api.order_history_mappers import to_persisted_order_response
 from tradelens_ai.api.schemas import (
+    AssistantChatRequest,
+    AssistantChangeRequest,
     AuditEventResponse,
     BrokerCredentialProfileResponse,
     BrokerCredentialProfileUpdateRequest,
@@ -40,6 +42,7 @@ from tradelens_ai.domain.models import OrderRequest, OrderSide, OrderType, Produ
 from tradelens_ai.persistence.order_store import SQLiteOrderStore
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
 from tradelens_ai.services.audit_service import AuditService
+from tradelens_ai.services.assistant_service import ChangeRequestStore, advisory_reply
 from tradelens_ai.services.broker_credentials_service import BrokerCredentialsService
 from tradelens_ai.services.broker_profile_service import BrokerProfile, BrokerProfileService
 from tradelens_ai.services.order_history_service import OrderHistoryService
@@ -125,6 +128,7 @@ except Exception as exc:
 risk_settings_service = RiskSettingsService(db_path)
 risk_service = StrategyRiskService(audit_store, risk_settings_service)
 strategy_summary_service = StrategySummaryService(audit_store)
+assistant_request_store = ChangeRequestStore(db_path)
 
 
 def _sync_dynamic_brokers_from_credentials() -> None:
@@ -186,6 +190,8 @@ def _diagnose_application() -> dict:
         "findings": findings,
         "capabilities": [
             {"name": "Health", "method": "GET", "path": "/health", "admin": False},
+            {"name": "Change assistant", "method": "POST", "path": "/assistant/chat", "admin": True},
+            {"name": "Saved change requests", "method": "GET/POST", "path": "/assistant/requests", "admin": True},
             {"name": "Diagnostics", "method": "GET", "path": "/diagnostics/status", "admin": False},
             {"name": "Paper position plan", "method": "POST", "path": "/strategy/small-capital/plan", "admin": False},
             {"name": "OHLC SMA backtest", "method": "POST", "path": "/strategy/small-capital/backtest", "admin": False},
@@ -269,6 +275,44 @@ def diagnostics_logs(limit: int = 100):
         }
         for event in rows if event.event_type == "diagnostic_run" or event.event_type == "backend_server_error"
     ]
+
+
+@app.post("/assistant/chat", tags=["assistant"], dependencies=[Depends(require_admin)])
+def assistant_chat(payload: AssistantChatRequest):
+    """Authenticated advice only: no code, deployment, or broker side effects."""
+    try:
+        reply, mode = advisory_reply(
+            payload.message, [item.model_dump() for item in payload.history]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "reply": reply,
+        "mode": mode,
+        "can_modify_repository": False,
+        "can_place_orders": False,
+    }
+
+
+@app.post("/assistant/requests", tags=["assistant"], dependencies=[Depends(require_admin)])
+def create_assistant_change_request(payload: AssistantChangeRequest):
+    """Store an owner-reviewed development request, never execute it."""
+    try:
+        request = assistant_request_store.save(payload.description)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    audit_service.log_event(
+        event_type="assistant_change_request_saved",
+        broker_name=None,
+        entity_id=str(request["request_id"]),
+        payload={"request_id": request["request_id"], "status": request["status"]},
+    )
+    return request
+
+
+@app.get("/assistant/requests", tags=["assistant"], dependencies=[Depends(require_admin)])
+def list_assistant_change_requests(limit: int = 30):
+    return assistant_request_store.list_requests(limit)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
