@@ -290,13 +290,15 @@ def diagnostics_logs(limit: int = 100):
 @app.post("/assistant/chat", tags=["assistant"], dependencies=[Depends(require_admin)])
 def assistant_chat(payload: AssistantChatRequest):
     """Authenticated advice only: no code, deployment, or broker side effects."""
+    search = search_web(payload.message) if requests_search(payload.message) else None
     try:
         reply, mode = advisory_reply(
-            payload.message, [item.model_dump() for item in payload.history]
+            payload.message,
+            [item.model_dump() for item in payload.history],
+            search_results=search["results"] if search else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    search = search_web(payload.message) if requests_search(payload.message) else None
     if search is not None:
         # Searches are attributable source links, never covert AI "knowledge".
         if search["results"]:
