@@ -406,3 +406,63 @@ th {
     display: grid;
   }
 }
+
+
+/* Small Capital Lab: research-only add-on to the existing dashboard. */
+.small-capital-card {
+  border: 1px solid #b8d9d1;
+  background: linear-gradient(180deg, #f7fcfa 0%, #fff 36%);
+}
+.research-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+  background: #e0f2ec;
+  color: #16594a;
+  padding: 0.3rem 0.5rem;
+  border-radius: 5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.research-heading { font-size: 1rem; margin: 1.1rem 0 0.7rem; }
+.research-note, .research-disclaimer {
+  max-width: 850px;
+  line-height: 1.65;
+  color: #4d6570;
+  font-size: 0.89rem;
+}
+.research-actions { margin: 0.8rem 0; }
+.research-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+.research-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.95rem;
+  border: 1px solid #dce7eb;
+  border-radius: 8px;
+  background: white;
+  min-width: 0;
+}
+.research-stats span { font-size: 0.77rem; color: #607680; }
+.research-stats strong { font-size: clamp(0.95rem, 2vw, 1.35rem); overflow-wrap: anywhere; }
+.research-divider { border: 0; border-top: 1px solid #dce7eb; margin: 1.5rem 0; }
+.research-curve-box {
+  padding: 1rem;
+  border: 1px solid #dce7eb;
+  border-radius: 8px;
+  background: white;
+}
+#scCurve { width: 100%; height: 165px; display: block; }
+.research-status { line-height: 1.5; color: #4d6570; font-size: 0.88rem; }
+.research-disclaimer { margin-top: 0.9rem; }
+@media (max-width: 750px) {
+  .research-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #scCurve { height: 130px; }
+}
