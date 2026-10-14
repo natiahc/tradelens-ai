@@ -166,3 +166,24 @@ class SmallCapitalPlanRequest(BaseModel):
     daily_realized_pnl_rupees: float = 0.0
     existing_symbol_exposure_rupees: float = Field(0.0, ge=0)
     capital_rupees: float = Field(25_000.0, gt=0)
+
+
+class DailyBarInput(BaseModel):
+    """Unadjusted OHLC for one historical trading session."""
+
+    date: str = Field(..., description="Trading session YYYY-MM-DD")
+    open: float = Field(..., gt=0, allow_inf_nan=False)
+    high: float = Field(..., gt=0, allow_inf_nan=False)
+    low: float = Field(..., gt=0, allow_inf_nan=False)
+    close: float = Field(..., gt=0, allow_inf_nan=False)
+
+
+class SmallCapitalBacktestRequest(BaseModel):
+    """Ephemeral research only. Prices are supplied by the caller."""
+
+    symbol: str = Field("INFY", min_length=1, max_length=25)
+    capital_rupees: float = Field(25_000.0, ge=1_000, le=100_000_000, allow_inf_nan=False)
+    fast_days: int = Field(20, ge=2, le=250)
+    slow_days: int = Field(50, ge=3, le=500)
+    stop_pct: float = Field(0.02, gt=0, lt=1, allow_inf_nan=False)
+    bars: list[DailyBarInput] = Field(..., min_length=4, max_length=2000)
