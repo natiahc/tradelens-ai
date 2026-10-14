@@ -3,12 +3,13 @@ from __future__ import annotations
 """Authenticated advisory chat for TradeLens AI.
 
 This service proposes changes; it cannot edit GitHub, deploy, or trade.
-OpenAI is optional: if no key is configured, local guidance remains usable.
+AI is optional: OpenAI or a reachable Ollama endpoint may supply richer replies.
 """
 
 import os
 import re
 import sqlite3
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 
 import httpx
@@ -43,6 +44,18 @@ def contains_secret(text: str) -> bool:
 
 def guided_reply(message: str) -> str:
     question = message.casefold()
+    if any(term in question for term in ("how to use", "how do i use", "how can i use", "guide me", "getting started", "how this app works", "how to start", "tutorial")):
+        return (
+            "Here's how to use TradeLens AI:\\n"
+            "1. In Small Capital Lab, choose a simulated budget (for example ₹25,000).\\n"
+            "2. Enter an illustrative entry/stop price and click Calculate Paper Position.\\n"
+            "3. Upload daily OHLC prices in Date,Open,High,Low,Close format, "
+            "or load the synthetic demo (not actual prices).\\n"
+            "4. Run Paper Backtest and examine fees, return, max drawdown and trades.\\n"
+            "5. Check Audit & Diagnostics for health and API coverage.\\n"
+            "6. Ask the assistant to change paper settings or save a feature request.\\n"
+            "No automatic live orders or guaranteed earnings."
+        )
     if any(term in question for term in ("daily money", "daily profit", "guarantee", "income")):
         return (
             "TradeLens cannot guarantee daily earnings. Start with paper trading, "
@@ -88,50 +101,93 @@ def guided_reply(message: str) -> str:
     )
 
 
+def _ollama_reply(messages: list[dict[str, str]]) -> str:
+    """Connect to a configured Ollama service, never a browser-submitted URL."""
+    base = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
+    model = os.getenv("OLLAMA_MODEL", "").strip()
+    if not base or not model:
+        raise ValueError("Ollama endpoint or model is not configured")
+    parts = urlsplit(base)
+    if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username or parts.password:
+        raise ValueError("OLLAMA_BASE_URL must be a valid HTTP(S) service endpoint")
+    headers = {"Content-Type": "application/json"}
+    key = os.getenv("OLLAMA_API_KEY", "").strip()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    with httpx.Client(timeout=18, follow_redirects=False) as client:
+        response = client.post(
+            base + "/api/chat",
+            headers=headers,
+            json={
+                "model": model,
+                "stream": False,
+                "messages": [{"role": "system", "content": ASSISTANT_CONTEXT}] + messages,
+                "options": {"num_predict": 450, "temperature": 0.3},
+            },
+        )
+        response.raise_for_status()
+    return str(response.json().get("message", {}).get("content", "")).strip()[:3500]
+
+
+def _openai_reply(messages: list[dict[str, str]]) -> str:
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not key:
+        raise ValueError("No OpenAI key configured")
+    model = os.getenv("TRADELENS_CHAT_MODEL", "gpt-4.1-mini").strip()
+    with httpx.Client(timeout=18, follow_redirects=False) as client:
+        response = client.post(
+            "https://api.openai.com/v1/responses",
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": model,
+                "instructions": ASSISTANT_CONTEXT,
+                "input": messages,
+                "max_output_tokens": 450,
+                "store": False,
+            },
+        )
+        response.raise_for_status()
+    chunks = [
+        piece.get("text", "")
+        for output in response.json().get("output", [])
+        if output.get("type") == "message"
+        for piece in output.get("content", [])
+        if piece.get("type") == "output_text"
+    ]
+    return "\\n".join(x for x in chunks if x).strip()[:3500]
+
+
 def advisory_reply(message: str, history: list[dict[str, str]]) -> tuple[str, str]:
-    """Return (reply, mode) without any ability to change code or place orders."""
+    """Return (reply, mode) without executing code, changing settings or trading."""
     if contains_secret(message) or any(contains_secret(row.get("content", "")) for row in history):
         raise ValueError("Remove API keys, access tokens or passwords from chat messages")
 
-    key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not key:
-        return guided_reply(message), "guided"
-
-    model = os.getenv("TRADELENS_CHAT_MODEL", "gpt-4.1-mini").strip()
     selected = [
         {"role": row["role"], "content": row["content"][:1500]}
         for row in history[-8:]
         if row.get("role") in {"user", "assistant"} and isinstance(row.get("content"), str)
     ]
     selected.append({"role": "user", "content": message[:2000]})
-    payload = {
-        "model": model,
-        "instructions": ASSISTANT_CONTEXT,
-        "input": selected,
-        "max_output_tokens": 450,
-        "store": False,
-    }
-    try:
-        with httpx.Client(timeout=16) as client:
-            response = client.post(
-                "https://api.openai.com/v1/responses",
-                headers={"Authorization": f"Bearer {key}"},
-                json=payload,
-            )
-            response.raise_for_status()
-        data = response.json()
-        chunks = [
-            piece.get("text", "")
-            for output in data.get("output", [])
-            if output.get("type") == "message"
-            for piece in output.get("content", [])
-            if piece.get("type") == "output_text"
-        ]
-        answer = "\n".join(x for x in chunks if x).strip()
-        return (answer[:3500], "ai") if answer else (guided_reply(message), "guided")
-    except (httpx.RequestError, httpx.HTTPStatusError, ValueError, KeyError, TypeError):
-        # Avoid exposing provider errors, tokens, or request payloads to users.
-        return guided_reply(message), "guided"
+    preference = os.getenv("TRADELENS_CHAT_PROVIDER", "auto").strip().lower()
+    # Explicit opt-out prevents uploading any chat text to external AI services.
+    if preference not in {"auto", "ollama", "openai", "guided"}:
+        preference = "guided"
+
+    providers = (
+        ["ollama", "openai"] if preference == "auto" else
+        [preference] if preference != "guided" else []
+    )
+    for provider in providers:
+        try:
+            answer = (_ollama_reply(selected) if provider == "ollama"
+                      else _openai_reply(selected))
+            if answer:
+                return answer, provider
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+            # Fail gracefully without revealing endpoint keys or provider errors.
+            continue
+
+    return guided_reply(message), "guided"
 
 
 class ChangeRequestStore:
