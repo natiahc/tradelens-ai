@@ -210,10 +210,54 @@
       return data;
     } finally { clearTimeout(deadline); }
   }
+  function showSources(search) {
+    if (!search) return;
+    const items = Array.isArray(search.results) ? search.results : [];
+    if (!items.length && !search.external_url) return;
+    const row = document.createElement("div");
+    row.className = "tl-chat-bubble tl-chat-assistant";
+    const label = document.createElement("p");
+    label.textContent = items.length ? "Web search sources:" : "Search externally:";
+    row.appendChild(label);
+    const safeItems = items.length ? items.slice(0, 5) : [
+      {title: "Open a web search", url: search.external_url}
+    ];
+    for (const item of safeItems) {
+      try {
+        const url = new URL(item.url);
+        if (!["http:", "https:"].includes(url.protocol)) continue;
+        const link = document.createElement("a");
+        link.href = url.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = (item.title || url.hostname).slice(0, 160);
+        row.appendChild(link);
+      } catch (_) { /* Ignore invalid external search URLs. */ }
+    }
+    $("tlChatMessages").appendChild(row);
+    $("tlChatMessages").scrollTop = $("tlChatMessages").scrollHeight;
+  }
+
   async function send(message) {
     if (working) return;
     const value = message.trim();
     if (!value) return;
+    // Sensitive-field autofill happens only inside the browser, BEFORE any
+    // message is displayed, logged, saved, or forwarded to Ollama/OpenAI.
+    const secretCommand = value.match(
+      /^(?:please\s+)?(?:set|fill|add|enter|use)\s+(?:my\s+)?(?:dhan\s+)?(api key|api secret|client id|access token)\s*(?:to|as|=|:)\s*(\S[\s\S]{0,3999})$/i
+    );
+    if (secretCommand) {
+      const kind = secretCommand[1].toLowerCase();
+      const success = window.tradeLensBroker?.fillSecretField(kind, secretCommand[2].trim());
+      $("tlChatInput").value = "";
+      bubble("user", "Fill Dhan " + kind + ": [hidden]");
+      bubble("assistant", success
+        ? "Filled the Dhan " + kind + " field securely in your browser. The value was not sent to AI or added to chat history. Review it, then select Save under Broker Credentials. Broker trading is still disabled."
+        : "Unable to open the secure credential form. Use Advanced tools → Broker Credentials.");
+      announce(success ? "Sensitive field filled without sharing it with AI." : "Secure field could not be filled.");
+      return;
+    }
     if (secret.test(value)) {
       announce("Do not paste passwords, broker tokens or API keys into chat.");
       return;
@@ -229,17 +273,36 @@
       if (localAction) {
         bubble("assistant", localAction);
         announce("Browser research settings updated, or requested check started.");
+      } else if (/\b(?:connect|login|log in|authenticate|link)\b[\s\S]{0,30}\bdhan\b/i.test(value)) {
+        bubble("assistant", "Starting official Dhan consent login, subject to your saved app credentials and admin access. Dhan requires your own login and 2FA.");
+        if (window.tradeLensBroker) await window.tradeLensBroker.start();
+        else bubble("assistant", "Dhan connector is unavailable; open the Connect Dhan section.");
+      } else if (/\b(?:fetch|show|get|pull|load)\b[\s\S]{0,45}\b(holdings|positions|funds|orders|profile)\b/i.test(value) &&
+                 /\b(dhan|my|account|broker)\b/i.test(value)) {
+        const category = value.match(/\b(holdings|positions|funds|orders|profile)\b/i)[1].toLowerCase();
+        const answer = window.tradeLensBroker
+          ? await window.tradeLensBroker.fetchCategory(category)
+          : "Dhan connector is not loaded. Open the Connect Dhan section.";
+        bubble("assistant", answer);
+        announce("Private broker fetch completed or a safe error was shown.");
       } else if (adminToken()) {
         try {
           const context = history.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content }));
           const result = await post("/assistant/chat", { message: value, history: context });
           bubble("assistant", result.reply || "No reply returned.");
-          announce(result.mode === "ai" ? "AI guidance. No code or trades were executed." :
-            "Guided reply. No code or trades were executed.");
+          showSources(result.search);
+          announce(result.mode === "ollama" ? "Ollama guidance. No live trades or code edits." :
+            result.mode === "openai" ? "AI guidance. No live trades or code edits." :
+            "Guided reply; no live trades or code edits.");
         } catch (_) {
           bubble("assistant", offlineReply(value));
           announce("Server assistant unavailable; browser guidance provided instead.");
         }
+      } else if (/\b(search|browse|look up|latest news|find online)\b/i.test(value)) {
+        const link = "https://search.brave.com/search?q=" + encodeURIComponent(value);
+        bubble("assistant", "Web search needs owner access and a configured provider. Open this search link: " + link);
+        showSources({results: [], external_url: link});
+        announce("External search link provided; no results were invented.");
       } else {
         bubble("assistant", offlineReply(value));
         announce("Guided mode. Unlock Tools with your admin token for server-side AI.");
