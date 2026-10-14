@@ -102,7 +102,7 @@ def test_plan_endpoint_rejects_invalid_long_entry():
 
 def test_non_mock_orders_disabled_by_default(monkeypatch):
     monkeypatch.delenv("TRADELENS_ALLOW_LIVE_ORDERS", raising=False)
-    client = TestClient(app)
+    client = TestClient(app, headers={"X-TradeLens-Admin-Token": "test-tradelens-token"})
     response = client.post("/orders", json={
         "broker": "dhan", "symbol": "1333", "exchange": "NSE_EQ",
         "side": "buy", "quantity": 1, "order_type": "market",
@@ -113,7 +113,7 @@ def test_non_mock_orders_disabled_by_default(monkeypatch):
 
 
 def test_webhook_never_uses_a_non_mock_broker():
-    client = TestClient(app)
+    client = TestClient(app, headers={"X-TradeLens-Admin-Token": "test-tradelens-token"})
     response = client.post("/webhooks/strategy", json={
         "source": "testing",
         "signal_type": "entry_long",
