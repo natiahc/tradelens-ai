@@ -25,6 +25,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      - name: Check dashboard JavaScript syntax
+        run: |
+          for js in frontend/dashboard/*.js; do
+            node --check "$js"
+          done
+
       - name: Run backend tests
         working-directory: backend
         run: pytest -q
