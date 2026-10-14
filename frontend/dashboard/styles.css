@@ -640,3 +640,86 @@ body.tl-compact-view .layout { gap: 12px; }
 body.tl-compact-view .card { padding: 13px; }
 body.tl-compact-view .topbar { padding-top: 12px; padding-bottom: 12px; }
 body.tl-compact-view .form-grid { gap: 10px; }
+
+
+/* TradeLens beginner experience — default to the three-step workflow. */
+.tl-home-section {
+  color: #e5e7eb;
+  padding: clamp(20px, 3vw, 34px);
+  background: linear-gradient(130deg, #17283d, #102840 65%, #10262c);
+  border: 1px solid #294b62;
+}
+.tl-welcome-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+.tl-welcome-top h2 {
+  font-size: clamp(1.45rem, 4vw, 2.1rem);
+  margin: 10px 0 12px;
+  line-height: 1.17;
+}
+.tl-welcome-top p { color: #c6d8df; line-height: 1.6; max-width: 650px; }
+.tl-eyebrow { letter-spacing: 0.1em; font-weight: 800; font-size: 0.7rem; color: #73dac5; }
+.tl-home-status {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; white-space: nowrap;
+  border: 1px solid #36695e; color: #bbf7d0;
+  background: #123a36; border-radius: 999px; font-size: 0.8rem;
+}
+.tl-home-status.tl-health-warning { background: #4a2a18; border-color: #8d5427; color: #ffdfb4; }
+.tl-status-dot { display: inline-block; height: 8px; width: 8px; border-radius: 50%; background: currentColor; }
+.tl-mode-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 17px 0 18px; }
+.tl-mode-switch button {
+  background: #172c3e; border: 1px solid #356075;
+  color: #cfe2eb; padding: 9px 14px;
+}
+.tl-mode-switch button.is-selected { color: #052d29; background: #8be8d1; border-color: #8be8d1; }
+.tl-step-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.tl-step {
+  background: rgba(255,255,255,.05);
+  border: 1px solid #385466;
+  padding: 19px; border-radius: 15px;
+}
+.tl-step-number { color: #7fe3cc; font-size: .75rem; font-weight: bold; letter-spacing: .14em; }
+.tl-step h3 { margin: 8px 0; font-size: 1.04rem; }
+.tl-step p { min-height: 62px; font-size: .87rem; line-height: 1.5; color: #c4d5e2; }
+.tl-step button { background: #16836e; color: white; border: 1px solid #2aa589; }
+.tl-plain-caution { font-size: .81rem; line-height: 1.5; color: #c5d4e2; margin: 18px 0 0; }
+#smallCapitalResearch {
+  background: #111d2a;
+  border-color: #30485c;
+  color: #e5e7eb;
+}
+#smallCapitalResearch .research-note,
+#smallCapitalResearch .research-disclaimer,
+#smallCapitalResearch .research-status { color: #c6d5e4; }
+#smallCapitalResearch .research-stats > div,
+#smallCapitalResearch .research-curve-box {
+  background: #182839;
+  color: #e5e7eb;
+  border-color: #34465b;
+}
+#smallCapitalResearch .research-stats span { color: #b6c9dc; }
+
+/* Advanced controls remain in DOM so existing handlers continue to work. */
+body:not(.tl-advanced-mode) .layout > section:not(#welcomeHome):not(#smallCapitalResearch) {
+  display: none !important;
+}
+body:not(.tl-advanced-mode) .api-config { display: none !important; }
+body:not(.tl-advanced-mode) #smallCapitalResearch label:has(#scCash),
+body:not(.tl-advanced-mode) #smallCapitalResearch label:has(#scDailyPnl),
+body:not(.tl-advanced-mode) #smallCapitalResearch label:has(#scFast),
+body:not(.tl-advanced-mode) #smallCapitalResearch label:has(#scSlow),
+body:not(.tl-advanced-mode) #smallCapitalResearch label:has(#scStopPct) {
+  display: none !important;
+}
+
+@media (max-width: 850px) {
+  .tl-welcome-top { flex-direction: column; }
+  .tl-step-grid { grid-template-columns: 1fr; }
+  .tl-step p { min-height: 0; }
+  .tl-home-status { white-space: normal; }
+  .tl-mode-switch button { flex: 1; }
+}
