@@ -130,6 +130,40 @@ def _ollama_reply(messages: list[dict[str, str]]) -> str:
 
 
 def _openai_reply(messages: list[dict[str, str]]) -> str:
+    # Optional Ollama inference. Keep this URL server-controlled; never accept
+    # arbitrary chat-supplied URLs (SSRF). Render cannot reach localhost Ollama
+    # unless the model actually runs in that same container.
+    ollama_url = os.getenv("TRADELENS_OLLAMA_URL", "").strip()
+    if ollama_url:
+        if not ollama_url.startswith("https://"):
+            return guided_reply(message), "guided"
+        base = ollama_url.rstrip("/")
+        if not base.endswith("/api/chat"):
+            base += "/api/chat"
+        ollama_model = os.getenv("TRADELENS_OLLAMA_MODEL", "llama3.2:3b").strip()
+        ollama_messages = [
+            {"role": "system", "content": ASSISTANT_CONTEXT},
+            *[
+                {"role": row["role"], "content": row["content"][:1500]}
+                for row in history[-8:]
+                if row.get("role") in {"user", "assistant"}
+                and isinstance(row.get("content"), str)
+            ],
+            {"role": "user", "content": message[:2000]},
+        ]
+        try:
+            with httpx.Client(timeout=18, follow_redirects=False) as client:
+                response = client.post(
+                    base,
+                    json={"model": ollama_model, "messages": ollama_messages,
+                          "stream": False, "options": {"num_predict": 450}},
+                )
+                response.raise_for_status()
+            answer = str(response.json().get("message", {}).get("content", "")).strip()
+            if answer:
+                return answer[:3500], "ollama"
+        except (httpx.RequestError, httpx.HTTPStatusError, ValueError, KeyError, TypeError):
+            pass  # Fall back to OpenAI or deterministic guided answers.
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
         raise ValueError("No OpenAI key configured")
