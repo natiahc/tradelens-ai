@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,7 @@ from tradelens_ai.api.schemas import (
     RiskSettingsResponse,
     RiskSettingsUpdateRequest,
     SmallCapitalPlanRequest,
+    SmallCapitalBacktestRequest,
     StrategySummaryResponse,
     StrategyWebhookRequest,
 )
@@ -42,6 +44,7 @@ from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.risk_settings_service import RiskSettings, RiskSettingsService
 from tradelens_ai.services.small_capital_service import SmallCapitalLimits, plan_cash_equity_trade
+from tradelens_ai.services.sma_backtest import DailyBar, backtest_sma
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.strategy_summary_service import StrategySummaryService
 from tradelens_ai.services.trading_service import TradingService
@@ -304,6 +307,32 @@ def small_capital_plan(payload: SmallCapitalPlanRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return plan.to_dict()
+
+
+@app.post("/strategy/small-capital/backtest", tags=["strategy"])
+def small_capital_backtest(payload: SmallCapitalBacktestRequest):
+    """Research only. Consumes caller-supplied history; no broker or DB writes."""
+    if payload.fast_days >= payload.slow_days:
+        raise HTTPException(status_code=422, detail="fast_days must be less than slow_days")
+    if len(payload.bars) <= payload.slow_days:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide more sessions than the slow moving-average window",
+        )
+    try:
+        bars = [
+            DailyBar(date=date.fromisoformat(item.date), open=item.open,
+                     high=item.high, low=item.low, close=item.close)
+            for item in payload.bars
+        ]
+        return backtest_sma(
+            bars, symbol=payload.symbol,
+            fast_days=payload.fast_days, slow_days=payload.slow_days,
+            stop_pct=payload.stop_pct,
+            limits=SmallCapitalLimits(capital_rupees=payload.capital_rupees),
+        )
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/orders", tags=["orders"])
