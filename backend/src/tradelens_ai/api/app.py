@@ -308,6 +308,15 @@ def small_capital_plan(payload: SmallCapitalPlanRequest):
 
 @app.post("/orders", tags=["orders"])
 def place_order(payload: PlaceOrderRequest):
+    # The API has no production authentication yet. Never send real orders by
+    # default, even when broker credentials have been configured.
+    if payload.broker.strip().lower() != "mock" and os.getenv(
+        "TRADELENS_ALLOW_LIVE_ORDERS", "false"
+    ).strip().lower() != "true":
+        raise HTTPException(
+            status_code=403,
+            detail="Live broker orders are disabled; use mock paper trading",
+        )
     _sync_dynamic_brokers_from_credentials()
     try:
         order = service.place_order(
