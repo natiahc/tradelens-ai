@@ -21,9 +21,11 @@ assistant**, not an autonomous coding/deployment or trading agent.
 - **"Show supported APIs"** → explains API support and directs the user to
   Audit & Diagnostics.
 - **"Add an RSI strategy and performance chart"** → the assistant explains
-  the requirements. Selecting **Save request** puts the feature request in
-  the admin-protected Render SQLite request queue. If not authenticated,
-  it saves a local browser draft instead; **Export requests** downloads it.
+  the requirements and **automatically queues an explicit feature suggestion**.
+  With the admin token, the request is saved in the admin-protected Render
+  SQLite queue. Otherwise, it becomes a local browser draft. The **Save
+  request** button remains available for non-imperative suggestions.
+  **Export requests** downloads local drafts.
 
 A chat request NEVER modifies backend code, creates a PR, deploys to Vercel
 or Render, modifies broker credentials, or places a live trade.
