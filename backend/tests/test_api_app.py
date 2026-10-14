@@ -34,7 +34,7 @@ def build_test_client() -> TestClient:
     )
     api_module.risk_settings_service = RiskSettingsService(temp_db.name)
     api_module.risk_service = StrategyRiskService(store, api_module.risk_settings_service)
-    return TestClient(fastapi_app)
+    return TestClient(fastapi_app, headers={"X-TradeLens-Admin-Token": "test-tradelens-token"})
 
 
 
