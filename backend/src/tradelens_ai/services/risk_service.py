@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from tradelens_ai.persistence.sqlite_store import SQLiteStore
@@ -24,6 +25,10 @@ class StrategyRiskService:
         if broker_name is None:
             return RiskDecision(False, "Broker is required for strategy execution")
 
+        # Signals named "paper_trade_order" must never reach a live broker.
+        if broker_name != "mock":
+            return RiskDecision(False, "Automated strategy webhooks are paper-only (mock broker)")
+
         if broker_name not in set(settings.allowed_brokers):
             return RiskDecision(False, f"Broker not allowed for strategy execution: {broker_name}")
 
@@ -35,7 +40,10 @@ class StrategyRiskService:
         if symbol not in set(settings.allowed_symbols):
             return RiskDecision(False, f"Symbol not allowed for execution: {symbol}")
 
-        quantity = int(order_payload.get("quantity", 0))
+        try:
+            quantity = int(order_payload.get("quantity", 0))
+        except (TypeError, ValueError):
+            return RiskDecision(False, "Quantity must be a positive integer")
         if quantity <= 0:
             return RiskDecision(False, "Quantity must be greater than zero")
         if quantity > settings.max_quantity:
@@ -48,4 +56,9 @@ class StrategyRiskService:
 
     def _strategy_execution_count_today(self) -> int:
         events = self._audit_store.list_audit_events(limit=1000)
-        return sum(1 for event in events if event.event_type == "strategy_signal_executed")
+        today_utc = datetime.now(timezone.utc).date().isoformat()
+        return sum(
+            1 for event in events
+            if event.event_type == "strategy_signal_executed"
+            and event.created_at[:10] == today_utc
+        )
