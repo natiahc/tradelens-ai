@@ -10,7 +10,7 @@
   <header class="topbar">
     <div>
       <h1>TradeLens AI</h1>
-      <p class="subtitle">Multi-broker trading intelligence dashboard</p>
+      <p class="subtitle">Simple paper trading, strategy testing &amp; guided help</p>
     </div>
     <div class="api-config">
       <label for="apiBaseUrl">API Base URL</label>
@@ -25,6 +25,42 @@
   <div id="statusBanner" class="status-banner status-banner-hidden">Ready</div>
 
   <main class="layout">
+    <section class="card wide tl-home-section" id="welcomeHome" aria-labelledby="tlWelcomeTitle">
+      <div class="tl-welcome-top">
+        <div>
+          <span class="tl-eyebrow">TRADELENS • PAPER TRADING</span>
+          <h2 id="tlWelcomeTitle">Your trading workspace, made simple.</h2>
+          <p>Start with a free simulation. No broker connection, Ollama setup, or real money is required.</p>
+        </div>
+        <div class="tl-home-status"><span class="tl-status-dot" aria-hidden="true"></span><span id="tlQuickStatus">Checking system…</span></div>
+      </div>
+      <div class="tl-mode-switch" role="group" aria-label="Dashboard view">
+        <button type="button" id="tlSimpleMode" aria-pressed="true">Simple view</button>
+        <button type="button" id="tlAdvancedMode" aria-pressed="false">Advanced tools</button>
+      </div>
+      <div class="tl-step-grid">
+        <article class="tl-step">
+          <span class="tl-step-number">01</span>
+          <h3>Try a strategy</h3>
+          <p>Use sample data to explore the backtest without uploading anything.</p>
+          <button type="button" id="tlTryDemo">Try demo →</button>
+        </article>
+        <article class="tl-step">
+          <span class="tl-step-number">02</span>
+          <h3>Use your own data</h3>
+          <p>Upload a historical NSE price CSV, then compare results and drawdowns.</p>
+          <button type="button" id="tlUploadData">Upload price data →</button>
+        </article>
+        <article class="tl-step">
+          <span class="tl-step-number">03</span>
+          <h3>Ask for help or changes</h3>
+          <p>Chat in everyday language. Safe paper settings can change instantly.</p>
+          <button type="button" id="tlOpenAssistant">Ask TradeLens →</button>
+        </article>
+      </div>
+      <p class="tl-plain-caution"><strong>Research only:</strong> Trading can lose money. Backtests and examples do not guarantee daily profits.</p>
+    </section>
+
 
 
     <section class="card wide diagnostic-card" id="diagnosticsCenter">
@@ -56,12 +92,12 @@
     <section class="card wide small-capital-card" id="smallCapitalResearch">
       <div class="card-header">
         <div>
-          <h2>Small Capital Lab <span class="research-badge">PAPER ONLY</span></h2>
+          <h2>Practice Trading <span class="research-badge">PAPER ONLY</span></h2>
           <p class="research-note">Plan positions and research a historical strategy. No broker order is submitted here, and daily profit is never guaranteed.</p>
         </div>
       </div>
 
-      <h3 class="research-heading">1. Risk-based position planner</h3>
+      <h3 class="research-heading">1. How much could I trade?</h3>
       <div class="form-grid">
         <label>Symbol <input id="scSymbol" type="text" value="INFY" maxlength="25" autocomplete="off"></label>
         <label>Simulated capital (₹) <input id="scCapital" type="number" min="1000" step="1000" value="25000"></label>
@@ -82,7 +118,7 @@
       <p id="scPlanStatus" role="status" class="research-status">Illustrative prices are not live NSE quotes.</p>
 
       <hr class="research-divider">
-      <h3 class="research-heading">2. Historical strategy backtest</h3>
+      <h3 class="research-heading">2. Test a trading strategy</h3>
       <p class="research-note">Upload your own <code>Date,Open,High,Low,Close</code> daily CSV, or load a clearly labelled synthetic demo dataset. Historical data is not downloaded automatically.</p>
       <div class="form-grid">
         <label>Historical OHLC file <input id="scCsvFile" type="file" accept=".csv,text/csv"></label>
@@ -517,12 +553,12 @@
       </div>
       <button type="button" id="tlChatClose" aria-label="Close assistant">×</button>
     </div>
-    <div class="tl-chat-help">Guided mode works without an API key. AI responses require your admin token and a configured server-side model (Ollama or OpenAI). <strong>No automatic code deployment or live trades.</strong></div>
+    <div class="tl-chat-help">Ask questions or change practice settings here. AI and web search work when server integrations are configured. <strong>No automatic code deployment or live trades.</strong></div>
     <div class="tl-chat-shortcuts" aria-label="Suggested prompts">
       <button type="button" data-tl-prompt="Set capital to 30000">Set ₹30k capital</button>
       <button type="button" data-tl-prompt="Run diagnostics">Check errors</button>
-      <button type="button" data-tl-prompt="Show supported APIs">Supported APIs</button>
-      <button type="button" data-tl-prompt="How can I add RSI strategy?">Request strategy</button>
+      <button type="button" data-tl-prompt="How do I use this app?">How to use</button>
+      <button type="button" data-tl-prompt="Search the web for NSE market data API providers">Search web</button>
     </div>
     <div id="tlChatMessages" class="tl-chat-messages" role="log"
       aria-label="TradeLens assistant messages" aria-live="polite"></div>
@@ -546,5 +582,6 @@
   <script src="./small_capital.js"></script>
   <script src="./diagnostics.js"></script>
   <script src="./assistant.js"></script>
+  <script src="./simple_ui.js"></script>
 </body>
 </html>
