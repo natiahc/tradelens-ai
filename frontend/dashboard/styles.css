@@ -633,3 +633,10 @@ th {
     border: 0;
   }
 }
+
+/* Owner chat layout preferences are local to this browser. */
+.tl-hidden-by-user { display: none !important; }
+body.tl-compact-view .layout { gap: 12px; }
+body.tl-compact-view .card { padding: 13px; }
+body.tl-compact-view .topbar { padding-top: 12px; padding-bottom: 12px; }
+body.tl-compact-view .form-grid { gap: 10px; }
