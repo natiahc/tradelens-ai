@@ -201,3 +201,8 @@ class AssistantChatRequest(BaseModel):
 
 class AssistantChangeRequest(BaseModel):
     description: str = Field(..., min_length=5, max_length=2000)
+
+
+class DhanCompleteRequest(BaseModel):
+    flow_state: str = Field(..., min_length=10, max_length=128)
+    token_id: str = Field(..., min_length=1, max_length=2048)
