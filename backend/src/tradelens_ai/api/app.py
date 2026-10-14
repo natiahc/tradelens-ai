@@ -25,6 +25,7 @@ from tradelens_ai.api.schemas import (
     PlaceOrderRequest,
     RiskSettingsResponse,
     RiskSettingsUpdateRequest,
+    SmallCapitalPlanRequest,
     StrategySummaryResponse,
     StrategyWebhookRequest,
 )
@@ -40,6 +41,7 @@ from tradelens_ai.services.broker_profile_service import BrokerProfile, BrokerPr
 from tradelens_ai.services.order_history_service import OrderHistoryService
 from tradelens_ai.services.risk_service import StrategyRiskService
 from tradelens_ai.services.risk_settings_service import RiskSettings, RiskSettingsService
+from tradelens_ai.services.small_capital_service import SmallCapitalLimits, plan_cash_equity_trade
 from tradelens_ai.services.strategy_execution_service import StrategyExecutionService
 from tradelens_ai.services.strategy_summary_service import StrategySummaryService
 from tradelens_ai.services.trading_service import TradingService
@@ -284,6 +286,24 @@ def get_strategy_summary() -> StrategySummaryResponse:
         blocked=summary.blocked,
         skipped=summary.skipped,
     )
+
+
+@app.post("/strategy/small-capital/plan", tags=["strategy"])
+def small_capital_plan(payload: SmallCapitalPlanRequest):
+    """Size a hypothetical NSE cash-equity trade. NEVER places an order."""
+    try:
+        plan = plan_cash_equity_trade(
+            symbol=payload.symbol,
+            entry_price=payload.entry_price,
+            stop_price=payload.stop_price,
+            available_cash_rupees=payload.available_cash_rupees,
+            daily_realized_pnl_rupees=payload.daily_realized_pnl_rupees,
+            existing_symbol_exposure_rupees=payload.existing_symbol_exposure_rupees,
+            limits=SmallCapitalLimits(capital_rupees=payload.capital_rupees),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return plan.to_dict()
 
 
 @app.post("/orders", tags=["orders"])
