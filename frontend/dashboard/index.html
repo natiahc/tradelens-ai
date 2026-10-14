@@ -503,9 +503,48 @@
     </section>
   </main>
 
+
+  <!-- Owner-facing assistant: chat can adjust safe local paper settings and queue code requests. -->
+  <button type="button" id="tlChatLauncher" class="tl-chat-launcher" aria-controls="tlChatPanel"
+    aria-expanded="false">✦ <span>Ask TradeLens</span></button>
+
+  <aside id="tlChatPanel" class="tl-chat-panel" role="dialog"
+    aria-labelledby="tlChatTitle" aria-modal="false" hidden>
+    <div class="tl-chat-head">
+      <div>
+        <h2 id="tlChatTitle">TradeLens Assistant</h2>
+        <p>Ask, configure paper trading, or request app changes</p>
+      </div>
+      <button type="button" id="tlChatClose" aria-label="Close assistant">×</button>
+    </div>
+    <div class="tl-chat-help">Guided mode works without an API key. AI responses require your admin token and a server-side AI key. <strong>No automatic code deployment or live trades.</strong></div>
+    <div class="tl-chat-shortcuts" aria-label="Suggested prompts">
+      <button type="button" data-tl-prompt="Set capital to 30000">Set ₹30k capital</button>
+      <button type="button" data-tl-prompt="Run diagnostics">Check errors</button>
+      <button type="button" data-tl-prompt="Show supported APIs">Supported APIs</button>
+      <button type="button" data-tl-prompt="How can I add RSI strategy?">Request strategy</button>
+    </div>
+    <div id="tlChatMessages" class="tl-chat-messages" role="log"
+      aria-label="TradeLens assistant messages" aria-live="polite"></div>
+    <p id="tlChatStatus" class="tl-chat-status" role="status">Browser-only preferences are safe to change here.</p>
+    <form id="tlChatForm" class="tl-chat-composer">
+      <label for="tlChatInput" class="tl-chat-label">Tell TradeLens what you want</label>
+      <textarea id="tlChatInput" rows="2" maxlength="2000"
+        placeholder="E.g. make a new RSI tab, or set fast MA to 15"
+        autocomplete="off"></textarea>
+      <div class="tl-chat-actions">
+        <button type="submit" id="tlChatSend">Send</button>
+        <button type="button" id="tlChatSave">Save request</button>
+        <button type="button" id="tlChatExport">Export requests</button>
+        <button type="button" id="tlChatClear">Clear chat</button>
+      </div>
+    </form>
+  </aside>
+
   <script src="./app.js"></script>
   <script src="./tutorial.js"></script>
   <script src="./small_capital.js"></script>
   <script src="./diagnostics.js"></script>
+  <script src="./assistant.js"></script>
 </body>
 </html>
