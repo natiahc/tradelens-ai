@@ -46,14 +46,14 @@ def guided_reply(message: str) -> str:
     question = message.casefold()
     if any(term in question for term in ("how to use", "how do i use", "how can i use", "guide me", "getting started", "how this app works", "how to start", "tutorial")):
         return (
-            "Here's how to use TradeLens AI:\\n"
-            "1. In Small Capital Lab, choose a simulated budget (for example ₹25,000).\\n"
-            "2. Enter an illustrative entry/stop price and click Calculate Paper Position.\\n"
+            "Here's how to use TradeLens AI:\n"
+            "1. In Small Capital Lab, choose a simulated budget (for example ₹25,000).\n"
+            "2. Enter an illustrative entry/stop price and click Calculate Paper Position.\n"
             "3. Upload daily OHLC prices in Date,Open,High,Low,Close format, "
-            "or load the synthetic demo (not actual prices).\\n"
-            "4. Run Paper Backtest and examine fees, return, max drawdown and trades.\\n"
-            "5. Check Audit & Diagnostics for health and API coverage.\\n"
-            "6. Ask the assistant to change paper settings or save a feature request.\\n"
+            "or load the synthetic demo (not actual prices).\n"
+            "4. Run Paper Backtest and examine fees, return, max drawdown and trades.\n"
+            "5. Check Audit & Diagnostics for health and API coverage.\n"
+            "6. Ask the assistant to change paper settings or save a feature request.\n"
             "No automatic live orders or guaranteed earnings."
         )
     if any(term in question for term in ("daily money", "daily profit", "guarantee", "income")):
@@ -154,7 +154,7 @@ def _openai_reply(messages: list[dict[str, str]]) -> str:
         for piece in output.get("content", [])
         if piece.get("type") == "output_text"
     ]
-    return "\\n".join(x for x in chunks if x).strip()[:3500]
+    return "\n".join(x for x in chunks if x).strip()[:3500]
 
 
 def advisory_reply(message: str, history: list[dict[str, str]]) -> tuple[str, str]:
