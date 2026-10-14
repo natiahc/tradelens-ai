@@ -98,3 +98,32 @@ def test_plan_endpoint_rejects_invalid_long_entry():
         "available_cash_rupees": 25_000,
     })
     assert response.status_code == 422
+
+
+def test_non_mock_orders_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("TRADELENS_ALLOW_LIVE_ORDERS", raising=False)
+    client = TestClient(app)
+    response = client.post("/orders", json={
+        "broker": "dhan", "symbol": "1333", "exchange": "NSE_EQ",
+        "side": "buy", "quantity": 1, "order_type": "market",
+        "product_type": "cnc",
+    })
+    assert response.status_code == 403
+    assert "Live broker orders are disabled" in response.json()["detail"]
+
+
+def test_webhook_never_uses_a_non_mock_broker():
+    client = TestClient(app)
+    response = client.post("/webhooks/strategy", json={
+        "source": "testing",
+        "signal_type": "entry_long",
+        "broker": "dhan",
+        "payload": {"paper_trade_order": {
+            "symbol": "INFY", "exchange": "NSE",
+            "side": "buy", "quantity": 1,
+            "order_type": "market", "product_type": "cnc",
+        }},
+    })
+    assert response.status_code == 200
+    assert response.json()["blocked"] is True
+    assert response.json()["executed"] is False
