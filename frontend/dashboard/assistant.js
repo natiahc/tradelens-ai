@@ -7,6 +7,7 @@
   if (!panel) return;
   const localRequestsKey = "tradelensProposedChangesV2";
   const preferenceKey = "tradelensResearchPrefsV2";
+  const uiKey = "tradelensUiPreferencesV1";
   const adminToken = () => sessionStorage.getItem("tradelensAdminToken") || "";
   const defaultApi = "https://tradelens-ai-t8za.onrender.com";
   const root = () => ($("apiBaseUrl")?.value.trim() ||
@@ -61,6 +62,24 @@
       }
     } catch (_) {}
   }
+  function restoreLayout() {
+    try {
+      const prefs = JSON.parse(localStorage.getItem(uiKey) || "{}");
+      const onboarding = document.querySelector(".onboarding-card");
+      if (onboarding) onboarding.classList.toggle("tl-hidden-by-user", Boolean(prefs.hideOnboarding));
+      document.body.classList.toggle("tl-compact-view", Boolean(prefs.compactView));
+    } catch (_) { /* Invalid preferences do not block assistant. */ }
+  }
+  function updateLayout(option, selected) {
+    const prefs = (() => {
+      try { return JSON.parse(localStorage.getItem(uiKey) || "{}"); }
+      catch (_) { return {}; }
+    })();
+    prefs[option] = selected;
+    localStorage.setItem(uiKey, JSON.stringify(prefs));
+    restoreLayout();
+  }
+
   function parseMoney(raw) {
     const m = raw.replace(/,/g, "").toLowerCase().replace(/\s+/g, "")
       .match(/^(\d+(?:\.\d+)?)(k|lakh|lakhs)?$/);
@@ -68,6 +87,22 @@
   }
   function action(message) {
     const text = message.trim();
+    if (/\\b(?:hide|remove|collapse)\\b[\\s\\S]{0,55}\\b(?:dhan|onboarding|getting started|setup instructions)\\b/i.test(text)) {
+      updateLayout("hideOnboarding", true);
+      return "Hidden the Dhan onboarding section in this browser. Say 'show Dhan onboarding' to restore it.";
+    }
+    if (/\\b(?:show|restore|unhide)\\b[\\s\\S]{0,55}\\b(?:dhan|onboarding|getting started|setup instructions)\\b/i.test(text)) {
+      updateLayout("hideOnboarding", false);
+      return "Dhan onboarding section restored in the dashboard.";
+    }
+    if (/\\b(?:compact|smaller|reduce spacing|less space)\\b/i.test(text) && /\\b(?:layout|view|dashboard|make|use|switch)\\b/i.test(text)) {
+      updateLayout("compactView", true);
+      return "Compact layout enabled for this browser. Say 'normal layout' to restore spacing.";
+    }
+    if (/\\b(?:normal|default|restore)\\s+(?:dashboard\\s+)?(?:layout|view|spacing)\\b/i.test(text)) {
+      updateLayout("compactView", false);
+      return "Default dashboard spacing restored.";
+    }
     if (/\b(?:set|change|update|make|use)\b/i.test(text)) {
       const capital = text.match(/\b(?:capital|paper budget|simulated capital)\s*(?:to|at|as|of|=)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?\s*(?:k|lakh|lakhs)?)/i);
       if (capital) {
@@ -284,6 +319,7 @@
     bubble("assistant", "Chat cleared. Ask how to use any feature or tell me what to adjust.");
   });
   restorePreferences();
+  restoreLayout();
   bubble("assistant", "Welcome! Ask 'How do I use this app?' for a walkthrough. " +
     "I can change safe paper-trading inputs, guide troubleshooting and save development requests.");
 })();
